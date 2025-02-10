@@ -128,3 +128,7 @@ Any static server works — `npx serve`, VS Code's Live Server, etc.
 ## 🌍 Why SDG 15
 
 Sustainable Development Goal 15 calls for protecting and restoring terrestrial ecosystems, sustainably managing forests, combating desertification, and halting biodiversity loss. This game doesn't simulate policy — it simulates the *feeling* of the goal: restoration is slow, degradation is fast if ignored, and protecting what you've already rebuilt matters as much as planting something new.
+
+## 📄 License
+
+MIT
