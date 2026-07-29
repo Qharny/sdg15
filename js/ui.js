@@ -32,28 +32,50 @@ export class UI {
       crosshair: document.getElementById("crosshair"),
       treesPlanted: document.getElementById("stat-planted"),
       loggersStopped: document.getElementById("stat-confronted"),
+      manual: document.getElementById("manual-screen"),
     };
     this.plantedCount = 0;
     this.confrontedCount = 0;
     this.lastDay = 1;
     this.factIndex = 0;
     this.wonAlready = false;
+    this.manualOpen = false;
   }
 
   onPlay(cb) {
     document.getElementById("btn-play").addEventListener("click", cb);
   }
 
+  onResume(cb) {
+    document.getElementById("btn-resume").addEventListener("click", cb);
+  }
+
   onRestart(cb) {
     document.getElementById("btn-restart").addEventListener("click", cb);
   }
 
-  hideStart() {
-    this.el.start.classList.add("hidden");
+  onManualOpen(cb) {
+    document.getElementById("btn-manual-start").addEventListener("click", cb);
+    document.getElementById("btn-manual-pause").addEventListener("click", cb);
+  }
+
+  onManualClose(cb) {
+    document.getElementById("btn-manual-close").addEventListener("click", cb);
+  }
+
+  showManual() {
+    this.manualOpen = true;
+    this.el.manual.classList.remove("hidden");
+    this.el.pause.classList.add("hidden");
+  }
+
+  hideManual() {
+    this.manualOpen = false;
+    this.el.manual.classList.add("hidden");
   }
 
   onPointerLock(locked) {
-    this.el.pause.classList.toggle("hidden", locked || this.wonAlready);
+    this.el.pause.classList.toggle("hidden", locked || this.wonAlready || this.manualOpen);
     this.el.crosshair.classList.toggle("hidden", !locked);
     if (locked) {
       this.el.start.classList.add("hidden");
@@ -125,13 +147,5 @@ export class UI {
       <p>It took <strong>${stats.day}</strong> in-game days.</p>`;
     this.el.victory.classList.remove("hidden");
     document.exitPointerLock?.();
-  }
-
-  reset() {
-    this.wonAlready = false;
-    this.plantedCount = 0;
-    this.confrontedCount = 0;
-    this.lastDay = 1;
-    this.el.victory.classList.add("hidden");
   }
 }

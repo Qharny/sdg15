@@ -52,11 +52,23 @@ class Game {
       this.audio.alert();
     };
 
-    this.ui.onPlay(() => {
-      this.player.lock();
-      this.audio.start();
-    });
+    this.player.onManualToggle = () => {
+      if (this.ui.manualOpen) this._closeManual();
+      else this._openManual();
+    };
+
+    this.ui.onPlay(() => this._resume());
+    this.ui.onResume(() => this._resume());
     this.ui.onRestart(() => location.reload());
+    this.ui.onManualOpen(() => this._openManual());
+    this.ui.onManualClose(() => this._closeManual());
+
+    // The pause screen previously had nothing wired to its "click to
+    // resume" text - clicking the canvas itself re-requests pointer lock,
+    // which the start-screen overlay naturally blocks until dismissed.
+    this.renderer.domElement.addEventListener("click", () => {
+      if (!this.player.locked && !this.ui.manualOpen && !this.ui.wonAlready) this._resume();
+    });
 
     window.addEventListener("resize", () => this._onResize());
 
@@ -217,6 +229,25 @@ class Game {
     this.sunSprite.material.opacity = 0.25 + height01 * 0.75;
 
     this.day = Math.floor(this.elapsed / DAY_LENGTH) + 1;
+  }
+
+  _resume() {
+    this.player.lock();
+    this.audio.start();
+  }
+
+  _openManual() {
+    this.ui.showManual();
+    if (this.player.locked) document.exitPointerLock?.();
+  }
+
+  _closeManual() {
+    this.ui.hideManual();
+    // Only auto-resume if the game was already underway (start screen
+    // dismissed) - opening the manual out of curiosity from the start
+    // screen shouldn't silently launch the game on close.
+    const alreadyStarted = this.ui.el.start.classList.contains("hidden");
+    if (!this.ui.wonAlready && alreadyStarted) this._resume();
   }
 
   _onResize() {

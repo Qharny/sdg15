@@ -50,6 +50,7 @@
         <span>Planted <strong id="stat-planted">0</strong></span>
         <span>Loggers stopped <strong id="stat-confronted">0</strong></span>
       </div>
+      <div class="manual-hint">Press <kbd>H</kbd> for the manual</div>
     </div>
   </div>
 
@@ -69,16 +70,101 @@
         <div><kbd>Q</kbd> Irrigate land</div>
         <div><kbd>F</kbd> Confront logger</div>
         <div><kbd>Esc</kbd> Pause</div>
+        <div><kbd>H</kbd> How to play</div>
       </div>
       <p class="goal">Goal: reach 55% forest cover and 55% biodiversity to restore the land.</p>
-      <button id="btn-play">Click to Play</button>
+      <div class="button-row">
+        <button id="btn-play">Click to Play</button>
+        <button id="btn-manual-start" class="btn-secondary">📖 How to Play</button>
+      </div>
     </div>
   </div>
 
   <div id="pause-screen" class="overlay hidden">
     <div class="card">
       <h2>Paused</h2>
-      <p class="desc">Click anywhere to resume protecting the land.</p>
+      <p class="desc">The valley is holding its breath. Resume when you're ready.</p>
+      <div class="button-row">
+        <button id="btn-resume">Resume</button>
+        <button id="btn-manual-pause" class="btn-secondary">📖 How to Play</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="manual-screen" class="overlay hidden">
+    <div class="card manual-card">
+      <h1>📖 Field Manual</h1>
+      <p class="subtitle">Everything you need to restore the valley</p>
+
+      <div class="manual-body">
+        <section>
+          <h3>🎯 Objective</h3>
+          <p>The valley is degrading: desert is spreading from the west, loggers are cutting the last mature trees,
+          and wildlife is disappearing as habitat is lost. Restore <strong>forest cover</strong> and
+          <strong>biodiversity</strong> to <strong>55%</strong> each to bring the ecosystem back from the brink.</p>
+        </section>
+
+        <section>
+          <h3>🕹️ Controls</h3>
+          <table class="manual-table">
+            <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Move</td></tr>
+            <tr><td><kbd>Mouse</kbd></td><td>Look around</td></tr>
+            <tr><td><kbd>E</kbd></td><td>Plant a sapling on the highlighted cell</td></tr>
+            <tr><td><kbd>Q</kbd></td><td>Irrigate the ground in front of you</td></tr>
+            <tr><td><kbd>F</kbd></td><td>Confront a logger who is actively chopping</td></tr>
+            <tr><td><kbd>H</kbd></td><td>Open or close this manual</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
+          </table>
+        </section>
+
+        <section>
+          <h3>🌱 How the land works</h3>
+          <p>Every patch of ground has a health value from bare desert to mature forest. Land with a tree on it
+          slowly heals; untended bare ground slowly degrades on its own. Desert patches can erode the health of
+          neighboring cells over time, so left unchecked, the desert genuinely spreads.</p>
+        </section>
+
+        <section>
+          <h3>🌲 Planting &amp; irrigating</h3>
+          <p>Walk up to degraded-but-not-desert ground and press <kbd>E</kbd> to plant — it costs one seed and
+          grows over time. Ground that's too far gone to plant on needs a drink first: press <kbd>Q</kbd> to
+          irrigate it, which raises its health enough to plant, and speeds up growth for anything already planted
+          nearby. Seeds regenerate slowly from your nursery; water refills from your canteen — both are limited, so
+          pace yourself.</p>
+        </section>
+
+        <section>
+          <h3>🪓 Loggers</h3>
+          <p>Loggers walk in from the map edge toward your healthiest trees and start chopping, shown by a health
+          bar over their head. Reach them and press <kbd>F</kbd> before the bar fills, or the tree — and a chunk of
+          that cell's health — is lost.</p>
+        </section>
+
+        <section>
+          <h3>🦌 Wildlife &amp; biodiversity</h3>
+          <p>Animals only move in once there's enough mature forest to support them, and they wander near their
+          home grove. If the land around them degrades or a logger gets too close, they flee and eventually
+          disappear. The biodiversity stat is a direct read of how much wildlife is currently thriving.</p>
+        </section>
+
+        <section>
+          <h3>🏆 Winning</h3>
+          <p>Reach 55% forest cover <em>and</em> 55% biodiversity at the same time to restore the ecosystem. Both
+          numbers move independently, so a healthy forest with no wildlife — or wildlife without enough forest to
+          sustain it — won't be enough on its own.</p>
+        </section>
+
+        <section>
+          <h3>💡 Tips</h3>
+          <ul>
+            <li>Irrigate before you plant if the ground reads too degraded — it's usually faster than waiting.</li>
+            <li>Cluster your planting near cells you've already restored; healthy ground helps its neighbors.</li>
+            <li>Patrol your best groves — that's exactly where loggers head.</li>
+          </ul>
+        </section>
+      </div>
+
+      <button id="btn-manual-close">Got it — back to the valley</button>
     </div>
   </div>
 

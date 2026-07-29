@@ -19,7 +19,10 @@ Built with nothing but plain HTML, CSS, and JavaScript ES modules, rendered with
 | Plant a sapling | `E` |
 | Irrigate the land | `Q` |
 | Confront a logger | `F` |
+| Open the field manual | `H` |
 | Pause | `Esc` |
+
+Never played? Press `H` anytime (or the "How to Play" button on the start/pause screens) for the in-game field manual — it covers the objective, mechanics, and a few tips without leaving the browser.
 
 **Win condition:** push forest cover and the biodiversity index to **55%** each, and the ecosystem is officially restored.
 

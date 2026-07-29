@@ -22,6 +22,7 @@ export class PlayerController {
     this.bobPhase = 0;
     this.bobBlend = 0;
     this._lastStepPhase = 0;
+    this.onManualToggle = null;
 
     this.keys = { w: false, a: false, s: false, d: false };
     this.seeds = 15;
@@ -52,6 +53,14 @@ export class PlayerController {
   }
 
   _onKey(e, down) {
+    if (e.code === "KeyH") {
+      if (down) this.onManualToggle?.();
+      return;
+    }
+    if (!this.locked) {
+      this.keys.w = this.keys.a = this.keys.s = this.keys.d = false;
+      return;
+    }
     switch (e.code) {
       case "KeyW": case "ArrowUp": this.keys.w = down; break;
       case "KeyS": case "ArrowDown": this.keys.s = down; break;
