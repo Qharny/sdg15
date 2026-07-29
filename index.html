@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Guardians of the Land — SDG 15: Life on Land</title>
+<link rel="stylesheet" href="style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌳</text></svg>" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <div id="crosshair" class="hidden"></div>
+  <div id="prompt" class="hidden"></div>
+  <div id="toasts"></div>
+
+  <div id="hud" class="hidden">
+    <div class="panel">
+      <div class="stat-row">
+        <span class="stat-label">🌲 Forest Cover</span>
+        <span class="stat-value" id="stat-forest">0%</span>
+      </div>
+      <div class="bar"><div class="bar-fill forest" id="bar-forest"></div></div>
+
+      <div class="stat-row">
+        <span class="stat-label">🦌 Biodiversity</span>
+        <span class="stat-value" id="stat-biodiversity">0%</span>
+      </div>
+      <div class="bar"><div class="bar-fill bio" id="bar-biodiversity"></div></div>
+
+      <div class="stat-row">
+        <span class="stat-label">💧 Water</span>
+        <span class="stat-value" id="stat-water">100%</span>
+      </div>
+      <div class="bar"><div class="bar-fill water" id="bar-water"></div></div>
+
+      <div class="mini-stats">
+        <span>☀️ Day <strong id="stat-day">1</strong></span>
+        <span>🌱 Seeds <strong id="stat-seeds">15/30</strong></span>
+      </div>
+      <div class="mini-stats">
+        <span>Planted <strong id="stat-planted">0</strong></span>
+        <span>Loggers stopped <strong id="stat-confronted">0</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="start-screen" class="overlay">
+    <div class="card">
+      <h1>🌍 Guardians of the Land</h1>
+      <p class="subtitle">SDG 15 — Life on Land</p>
+      <p class="desc">
+        A desert is swallowing the valley and loggers are cutting the last stands of forest.
+        Plant trees, irrigate dying land, and defend your forest to restore the ecosystem
+        before degradation wins.
+      </p>
+      <div class="controls-grid">
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</div>
+        <div><kbd>Mouse</kbd> Look</div>
+        <div><kbd>E</kbd> Plant sapling</div>
+        <div><kbd>Q</kbd> Irrigate land</div>
+        <div><kbd>F</kbd> Confront logger</div>
+        <div><kbd>Esc</kbd> Pause</div>
+      </div>
+      <p class="goal">Goal: reach 55% forest cover and 55% biodiversity to restore the land.</p>
+      <button id="btn-play">Click to Play</button>
+    </div>
+  </div>
+
+  <div id="pause-screen" class="overlay hidden">
+    <div class="card">
+      <h2>Paused</h2>
+      <p class="desc">Click anywhere to resume protecting the land.</p>
+    </div>
+  </div>
+
+  <div id="victory-screen" class="overlay hidden">
+    <div class="card">
+      <h1>🌳 Ecosystem Restored!</h1>
+      <p class="subtitle">You helped deliver SDG 15: Life on Land</p>
+      <div id="final-stats" class="final-stats"></div>
+      <p class="desc">
+        Real-world land restoration works the same way: it takes sustained effort,
+        community protection of forests, and patience for growth. Thank you for playing.
+      </p>
+      <button id="btn-restart">Play Again</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
