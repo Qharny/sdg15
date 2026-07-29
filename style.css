@@ -153,6 +153,48 @@ html, body {
 }
 .manual-hint kbd { font-size: 10.5px; padding: 1px 6px; }
 
+/* Logger speech bubbles */
+#logger-chat-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 18;
+}
+.chat-bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 170px;
+  background: rgba(255, 252, 240, 0.96);
+  color: #241c10;
+  padding: 7px 12px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  scale: 0.85;
+  transition: opacity 0.18s ease, scale 0.18s ease;
+  will-change: transform;
+}
+.chat-bubble.visible {
+  opacity: 1;
+  scale: 1;
+}
+.chat-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: rgba(255, 252, 240, 0.96);
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 2px;
+}
+
 /* Overlays */
 .overlay {
   position: fixed;
@@ -237,6 +279,50 @@ button:active { transform: translateY(0); }
   border: 1px solid rgba(255,255,255,0.2);
 }
 .btn-secondary:hover { box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+
+/* Level select */
+.level-select-card { max-width: 640px; }
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 20px 0;
+}
+.level-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 14px;
+  padding: 16px 10px;
+  color: inherit;
+  font-family: inherit;
+  text-align: center;
+  box-shadow: none;
+}
+.level-card:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0,0,0,0.35); }
+.level-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(255,255,255,0.03);
+}
+.level-card-num {
+  font-size: 20px;
+  font-weight: 800;
+  color: #a7e08a;
+}
+.level-card:disabled .level-card-num { color: #d9c98a; }
+.level-card-name { font-size: 14px; font-weight: 700; }
+.level-card-tagline { font-size: 11.5px; opacity: 0.8; line-height: 1.4; }
+
+#level-confirm h2 { margin-bottom: 4px; }
+#level-confirm .goal { margin-top: 4px; }
+
+@media (max-width: 520px) {
+  .level-grid { grid-template-columns: 1fr; }
+}
 
 #manual-screen { z-index: 50; }
 .manual-card {

@@ -7,11 +7,19 @@ const MATURE_THRESHOLD = 0.72;
 const GRASS_THRESHOLD = 0.5;
 
 export class Terrain {
-  constructor(scene, size = 46, cellSize = 4.2) {
+  constructor(scene, size = 46, cellSize = 4.2, opts = {}) {
     this.scene = scene;
     this.size = size;
     this.cellSize = cellSize;
     this.half = (size * cellSize) / 2;
+
+    this.decayRate = opts.decayRate ?? 0.006;
+    this.growthRate = opts.growthRate ?? 0.012;
+    this.desertSpreadInterval = opts.desertSpreadInterval ?? 0.4;
+    this.desertSpreadSampleRate = opts.desertSpreadSampleRate ?? 0.02;
+    this.desertSpreadAmount = opts.desertSpreadAmount ?? 0.03;
+    this.desertRadiusFactor = opts.desertRadiusFactor ?? 0.22;
+    this.forestRadiusFactor = opts.forestRadiusFactor ?? 0.24;
 
     this.health = new Float32Array(size * size);
     this._generateInitialHealth();
@@ -35,9 +43,9 @@ export class Terrain {
         const dDesert = Math.hypot(col - desertCenter.x, row - desertCenter.y);
         const dForest = Math.hypot(col - forestCenter.x, row - forestCenter.y);
         let h;
-        if (dDesert < size * 0.22) {
+        if (dDesert < size * this.desertRadiusFactor) {
           h = 0.03 + Math.random() * 0.05;
-        } else if (dForest < size * 0.24) {
+        } else if (dForest < size * this.forestRadiusFactor) {
           h = 0.78 + Math.random() * 0.2;
         } else {
           h = 0.22 + Math.random() * 0.28 - dDesert * 0.004;
@@ -213,9 +221,9 @@ export class Terrain {
         const hasTree = treeManager.hasTreeAt(col, row);
         let h = this.health[idx];
         if (hasTree) {
-          h += 0.012 * dt;
+          h += this.growthRate * dt;
         } else {
-          h -= 0.006 * dt;
+          h -= this.decayRate * dt;
         }
         h = clamp(h, 0.01, 1);
         if (Math.abs(h - this.health[idx]) > 0.0001) {
@@ -227,9 +235,9 @@ export class Terrain {
 
     // Desertification spread: sparse random sampling, not a full pass,
     // so it stays gentle and doesn't overwhelm an attentive player.
-    if (this._tickAccum > 0.4) {
+    if (this._tickAccum > this.desertSpreadInterval) {
       this._tickAccum = 0;
-      const samples = Math.round(size * size * 0.02);
+      const samples = Math.round(size * size * this.desertSpreadSampleRate);
       for (let i = 0; i < samples; i++) {
         const col = (Math.random() * size) | 0;
         const row = (Math.random() * size) | 0;
@@ -238,7 +246,7 @@ export class Terrain {
           const dr = ((Math.random() * 3) | 0) - 1;
           const nc = col + dc, nr = row + dr;
           if (this.inBounds(nc, nr) && !treeManager.hasTreeAt(nc, nr)) {
-            this.adjustHealth(nc, nr, -0.03);
+            this.adjustHealth(nc, nr, -this.desertSpreadAmount);
           }
         }
       }

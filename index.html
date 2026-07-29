@@ -50,32 +50,44 @@
         <span>Planted <strong id="stat-planted">0</strong></span>
         <span>Loggers stopped <strong id="stat-confronted">0</strong></span>
       </div>
-      <div class="manual-hint">Press <kbd>H</kbd> for the manual</div>
+      <div class="manual-hint" id="hud-level">Press <kbd>H</kbd> for the manual</div>
     </div>
   </div>
 
   <div id="start-screen" class="overlay">
-    <div class="card">
+    <div class="card level-select-card">
       <h1>🌍 Guardians of the Land</h1>
       <p class="subtitle">SDG 15 — Life on Land</p>
-      <p class="desc">
-        A desert is swallowing the valley and loggers are cutting the last stands of forest.
-        Plant trees, irrigate dying land, and defend your forest to restore the ecosystem
-        before degradation wins.
-      </p>
-      <div class="controls-grid">
-        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</div>
-        <div><kbd>Mouse</kbd> Look</div>
-        <div><kbd>E</kbd> Plant sapling</div>
-        <div><kbd>Q</kbd> Irrigate land</div>
-        <div><kbd>F</kbd> Confront logger</div>
-        <div><kbd>Esc</kbd> Pause</div>
-        <div><kbd>H</kbd> How to play</div>
+
+      <div id="level-intro">
+        <p class="desc">
+          A desert is swallowing the valley and loggers are cutting the last stands of forest.
+          Plant trees, irrigate dying land, and defend your forest to restore the ecosystem
+          before degradation wins. Choose a level to begin.
+        </p>
+        <div class="controls-grid">
+          <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</div>
+          <div><kbd>Mouse</kbd> Look</div>
+          <div><kbd>E</kbd> Plant sapling</div>
+          <div><kbd>Q</kbd> Irrigate land</div>
+          <div><kbd>F</kbd> Confront logger</div>
+          <div><kbd>Esc</kbd> Pause</div>
+          <div><kbd>H</kbd> How to play</div>
+        </div>
+        <div id="level-grid" class="level-grid"></div>
+        <div class="button-row">
+          <button id="btn-manual-start" class="btn-secondary">📖 How to Play</button>
+        </div>
       </div>
-      <p class="goal">Goal: reach 55% forest cover and 55% biodiversity to restore the land.</p>
-      <div class="button-row">
-        <button id="btn-play">Click to Play</button>
-        <button id="btn-manual-start" class="btn-secondary">📖 How to Play</button>
+
+      <div id="level-confirm" class="hidden">
+        <h2 id="level-confirm-name"></h2>
+        <p class="subtitle" id="level-confirm-tagline"></p>
+        <p class="goal" id="level-confirm-goal"></p>
+        <div class="button-row">
+          <button id="btn-play-confirm">Click to Play</button>
+          <button id="btn-level-back" class="btn-secondary">Choose a Different Level</button>
+        </div>
       </div>
     </div>
   </div>
@@ -101,7 +113,9 @@
           <h3>🎯 Objective</h3>
           <p>The valley is degrading: desert is spreading from the west, loggers are cutting the last mature trees,
           and wildlife is disappearing as habitat is lost. Restore <strong>forest cover</strong> and
-          <strong>biodiversity</strong> to <strong>55%</strong> each to bring the ecosystem back from the brink.</p>
+          <strong>biodiversity</strong> to the targets shown for your chosen level (see the HUD and level-select
+          screen) to bring the ecosystem back from the brink. Easier levels ask for less and give you more room to
+          make mistakes — harder ones push both numbers higher.</p>
         </section>
 
         <section>
@@ -149,9 +163,10 @@
 
         <section>
           <h3>🏆 Winning</h3>
-          <p>Reach 55% forest cover <em>and</em> 55% biodiversity at the same time to restore the ecosystem. Both
-          numbers move independently, so a healthy forest with no wildlife — or wildlife without enough forest to
-          sustain it — won't be enough on its own.</p>
+          <p>Reach your level's forest cover target <em>and</em> its biodiversity target at the same time to restore
+          the ecosystem. Both numbers move independently, so a healthy forest with no wildlife — or wildlife
+          without enough forest to sustain it — won't be enough on its own. Clearing a level unlocks the next,
+          harder one.</p>
         </section>
 
         <section>
@@ -170,14 +185,18 @@
 
   <div id="victory-screen" class="overlay hidden">
     <div class="card">
-      <h1>🌳 Ecosystem Restored!</h1>
-      <p class="subtitle">You helped deliver SDG 15: Life on Land</p>
+      <h1 id="victory-title">🌳 Ecosystem Restored!</h1>
+      <p class="subtitle" id="victory-subtitle">You helped deliver SDG 15: Life on Land</p>
       <div id="final-stats" class="final-stats"></div>
       <p class="desc">
         Real-world land restoration works the same way: it takes sustained effort,
         community protection of forests, and patience for growth. Thank you for playing.
       </p>
-      <button id="btn-restart">Play Again</button>
+      <div class="button-row">
+        <button id="btn-next-level">Next Level →</button>
+        <button id="btn-restart" class="btn-secondary">🔁 Replay Level</button>
+        <button id="btn-level-select" class="btn-secondary">🗺️ Level Select</button>
+      </div>
     </div>
   </div>
 

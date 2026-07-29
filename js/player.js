@@ -7,7 +7,7 @@ const EYE_HEIGHT = 2.1;
 const MOVE_SPEED = 9;
 
 export class PlayerController {
-  constructor(camera, domElement, terrain, treeManager, loggerManager, ui, audio) {
+  constructor(camera, domElement, terrain, treeManager, loggerManager, ui, audio, opts = {}) {
     this.camera = camera;
     this.terrain = terrain;
     this.treeManager = treeManager;
@@ -25,10 +25,13 @@ export class PlayerController {
     this.onManualToggle = null;
 
     this.keys = { w: false, a: false, s: false, d: false };
-    this.seeds = 15;
-    this.maxSeeds = 30;
-    this.water = 100;
-    this.maxWater = 100;
+    this.seeds = opts.startSeeds ?? 15;
+    this.maxSeeds = opts.maxSeeds ?? 30;
+    this.water = opts.maxWater ?? 100;
+    this.maxWater = opts.maxWater ?? 100;
+    this.seedRegenTime = opts.seedRegenTime ?? 9;
+    this.waterRegenRate = opts.waterRegenRate ?? 5.5;
+    this.waterDrainPerUse = opts.waterDrainPerUse ?? 18;
 
     this.seedRegenAccum = 0;
     this.target = { type: null, col: 0, row: 0 };
@@ -85,14 +88,14 @@ export class PlayerController {
   }
 
   _water() {
-    if (this.water < 18) { this.ui.toast("Canteen low - wait for it to refill.", 1800); return; }
+    if (this.water < this.waterDrainPerUse) { this.ui.toast("Canteen low - wait for it to refill.", 1800); return; }
     const pos = this.camera.position;
     const forward = new THREE.Vector3();
     this.camera.getWorldDirection(forward);
     const x = pos.x + forward.x * 3;
     const z = pos.z + forward.z * 3;
     this.terrain.waterAround(x, z, 1, 0.24);
-    this.water -= 18;
+    this.water -= this.waterDrainPerUse;
     this.ui.toast("Land irrigated \u{1F4A7}", 1200);
     this.audio?.splash();
   }
@@ -167,9 +170,9 @@ export class PlayerController {
       this._findTarget();
     }
 
-    this.water = clamp(this.water + 5.5 * dt, 0, this.maxWater);
+    this.water = clamp(this.water + this.waterRegenRate * dt, 0, this.maxWater);
     this.seedRegenAccum += dt;
-    if (this.seedRegenAccum > 9) {
+    if (this.seedRegenAccum > this.seedRegenTime) {
       this.seedRegenAccum = 0;
       this.seeds = clamp(this.seeds + 1, 0, this.maxSeeds);
     }

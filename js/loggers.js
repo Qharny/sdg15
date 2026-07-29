@@ -1,9 +1,32 @@
 import * as THREE from "three";
 import { heightAt, randRange } from "./utils.js";
 
-const LOGGER_COUNT = 4;
-const CHOP_TIME = 6.5;
 export const CONFRONT_RADIUS = 5.5;
+
+// Ambient/reaction barks shown in speech bubbles above a logger's head -
+// picked by state so the chatter reflects what they're actually doing.
+const SEEKING_LINES = [
+  "Just a few more trees...",
+  "Nobody's watching out here.",
+  "Quota's not gonna fill itself.",
+  "This forest's got plenty to spare.",
+  "That grove looks about right.",
+];
+const CHOPPING_LINES = [
+  "This one's coming down!",
+  "Almost through...",
+  "Good, solid timber here.",
+  "Won't take but a minute.",
+  "Nice and easy now...",
+];
+const TREE_DOWN_LINES = ["Timber!", "That's one down.", "Ha, told you!"];
+const CONFRONTED_LINES = [
+  "Alright, alright, I'm going!",
+  "Fine! Not worth the hassle.",
+  "You win this round.",
+  "Ugh, forget it.",
+  "Okay, okay, backing off!",
+];
 
 function buildLoggerMesh() {
   const group = new THREE.Group();
@@ -31,15 +54,17 @@ function buildLoggerMesh() {
 }
 
 export class LoggerManager {
-  constructor(scene, terrain, treeManager) {
+  constructor(scene, terrain, treeManager, opts = {}) {
     this.scene = scene;
     this.terrain = terrain;
     this.treeManager = treeManager;
     this.loggers = [];
     this.onTreeLost = null;
     this.onConfronted = null;
+    this.chopTime = opts.chopTime ?? 6.5;
+    const loggerCount = opts.loggerCount ?? 4;
 
-    for (let i = 0; i < LOGGER_COUNT; i++) {
+    for (let i = 0; i < loggerCount; i++) {
       const { group, barBg, barFg } = buildLoggerMesh();
       scene.add(group);
       scene.add(barBg);
@@ -52,6 +77,9 @@ export class LoggerManager {
         chopProgress: 0,
         retreatTarget: null,
         respawnTimer: randRange(1, 6),
+        chatText: null,
+        chatTimer: 0,
+        chatCooldown: randRange(1, 4),
       });
     }
   }
@@ -78,6 +106,11 @@ export class LoggerManager {
     return candidates[(Math.random() * candidates.length) | 0];
   }
 
+  _say(lg, pool, duration = 3) {
+    lg.chatText = pool[(Math.random() * pool.length) | 0];
+    lg.chatTimer = duration;
+  }
+
   confrontNearest(playerPos) {
     let best = null, bestD = CONFRONT_RADIUS;
     for (const lg of this.loggers) {
@@ -90,6 +123,8 @@ export class LoggerManager {
       best.retreatTarget = this._edgeSpawnPoint();
       best.barBg.visible = false;
       best.barFg.visible = false;
+      this._say(best, CONFRONTED_LINES, 2.4);
+      best.chatCooldown = Infinity; // retreating/despawning - no more ambient chatter
       if (this.onConfronted) this.onConfronted();
       return true;
     }
@@ -119,6 +154,8 @@ export class LoggerManager {
             lg.active = true;
             lg.state = "seeking";
             lg.chopProgress = 0;
+            lg.chatText = null;
+            lg.chatCooldown = randRange(2, 5);
           } else {
             lg.respawnTimer = randRange(2, 5);
           }
@@ -155,7 +192,7 @@ export class LoggerManager {
           lg.barFg.visible = false;
           continue;
         }
-        lg.chopProgress += dt / CHOP_TIME;
+        lg.chopProgress += dt / this.chopTime;
         lg.barFg.scale.x = Math.max(0.001, 1 - lg.chopProgress);
         if (lg.chopProgress >= 1) {
           const { col, row } = lg.targetCell;
@@ -166,6 +203,8 @@ export class LoggerManager {
           lg.retreatTarget = this._edgeSpawnPoint();
           lg.barBg.visible = false;
           lg.barFg.visible = false;
+          this._say(lg, TREE_DOWN_LINES, 2.2);
+          lg.chatCooldown = Infinity;
         }
       } else if (lg.state === "retreating") {
         if (!lg.retreatTarget) lg.retreatTarget = this._edgeSpawnPoint();
@@ -180,6 +219,18 @@ export class LoggerManager {
           p.x += (dx / dist) * step;
           p.z += (dz / dist) * step;
           lg.mesh.rotation.y = Math.atan2(dx, dz);
+        }
+      }
+
+      if (lg.chatTimer > 0) {
+        lg.chatTimer -= dt;
+        if (lg.chatTimer <= 0) lg.chatText = null;
+      }
+      if (lg.chatCooldown !== Infinity) {
+        lg.chatCooldown -= dt;
+        if (lg.chatCooldown <= 0 && !lg.chatText && (lg.state === "seeking" || lg.state === "chopping")) {
+          this._say(lg, lg.state === "chopping" ? CHOPPING_LINES : SEEKING_LINES, randRange(2.5, 4));
+          lg.chatCooldown = randRange(7, 13);
         }
       }
 

@@ -3,14 +3,14 @@ import { Terrain } from "./terrain.js";
 import { TreeManager } from "./trees.js";
 import { AnimalManager } from "./animals.js";
 import { LoggerManager } from "./loggers.js";
+import { ChatBubbleManager } from "./chatBubbles.js";
 import { PlayerController } from "./player.js";
 import { UI } from "./ui.js";
 import { AudioManager } from "./audio.js";
 import { randRange } from "./utils.js";
+import { LEVELS, getUnlockedLevel, unlockLevel, consumePendingLevel, setPendingLevel } from "./levels.js";
 
 const DAY_LENGTH = 100; // seconds per in-game day
-const WIN_FOREST_PCT = 55;
-const WIN_BIODIVERSITY = 55;
 
 // Radial-gradient canvas texture for the sun's glow sprite - generated in
 // code so no image asset needs to be fetched.
@@ -30,7 +30,9 @@ function makeGlowTexture() {
 }
 
 class Game {
-  constructor() {
+  constructor(level, levelIndex) {
+    this.level = level;
+    this.levelIndex = levelIndex;
     this.canvas = document.getElementById("scene");
     this.clock = new THREE.Clock();
     this.elapsed = 0;
@@ -41,10 +43,11 @@ class Game {
     this._initSandParticles();
 
     this.ui = new UI();
+    this.ui.setLevelInfo(level, levelIndex);
     this.audio = new AudioManager();
     this.player = new PlayerController(
       this.camera, this.renderer.domElement,
-      this.terrain, this.trees, this.loggers, this.ui, this.audio
+      this.terrain, this.trees, this.loggers, this.ui, this.audio, level
     );
 
     this.loggers.onTreeLost = () => {
@@ -57,9 +60,17 @@ class Game {
       else this._openManual();
     };
 
-    this.ui.onPlay(() => this._resume());
     this.ui.onResume(() => this._resume());
-    this.ui.onRestart(() => location.reload());
+    this.ui.onRestart(() => {
+      setPendingLevel(this.levelIndex);
+      location.reload();
+    });
+    this.ui.onNextLevel(() => {
+      unlockLevel(this.levelIndex + 1);
+      setPendingLevel(this.levelIndex + 1);
+      location.reload();
+    });
+    this.ui.onLevelSelect(() => location.reload());
     this.ui.onManualOpen(() => this._openManual());
     this.ui.onManualClose(() => this._closeManual());
 
@@ -74,6 +85,11 @@ class Game {
 
     this._animate = this._animate.bind(this);
     requestAnimationFrame(this._animate);
+
+    // Level was already confirmed on the level-select screen (the click
+    // that constructed this Game *is* the user gesture), so start playing
+    // immediately instead of waiting for a separate "Play" button.
+    this._resume();
   }
 
   _initScene() {
@@ -155,7 +171,7 @@ class Game {
   }
 
   _initWorld() {
-    this.terrain = new Terrain(this.scene, 46, 4.2);
+    this.terrain = new Terrain(this.scene, 46, 4.2, this.level);
 
     // Base plane beneath the cell grid to avoid seeing through gaps.
     const baseGeo = new THREE.PlaneGeometry(this.terrain.half * 2.4, this.terrain.half * 2.4);
@@ -168,7 +184,8 @@ class Game {
 
     this.trees = new TreeManager(this.scene, this.terrain);
     this.animals = new AnimalManager(this.scene, this.terrain, this.trees);
-    this.loggers = new LoggerManager(this.scene, this.terrain, this.trees);
+    this.loggers = new LoggerManager(this.scene, this.terrain, this.trees, this.level);
+    this.chat = new ChatBubbleManager(this.loggers);
   }
 
   _initSandParticles() {
@@ -269,6 +286,7 @@ class Game {
     this.animals.update(dt, this.loggers, this.camera.position);
     this.loggers.update(dt);
     this.loggers.faceBillboards(this.camera.quaternion);
+    this.chat.update(this.camera, this.renderer);
     this.player.update(dt);
 
     const forestPct = this.terrain.forestCoverPct();
@@ -285,12 +303,79 @@ class Game {
     });
     this.ui.updatePrompt(this.player.target);
 
-    if (forestPct >= WIN_FOREST_PCT && biodiversity >= WIN_BIODIVERSITY) {
-      this.ui.showVictory({ forestPct, biodiversity, day: this.day });
+    if (forestPct >= this.level.winForestPct && biodiversity >= this.level.winBiodiversityPct) {
+      if (!this.ui.wonAlready) unlockLevel(this.levelIndex + 1);
+      this.ui.showVictory({ forestPct, biodiversity, day: this.day }, {
+        levelIndex: this.levelIndex,
+        levelName: this.level.name,
+        hasNext: this.levelIndex + 1 < LEVELS.length,
+        nextName: LEVELS[this.levelIndex + 1]?.name,
+      });
     }
 
     this.renderer.render(this.scene, this.camera);
   }
 }
 
-window.addEventListener("DOMContentLoaded", () => new Game());
+// --- Level-select bootstrap -------------------------------------------
+// The heavy scene/world isn't built until a level is confirmed, so picking
+// a level (or bouncing back from a victory screen's "Next level"/"Replay")
+// never pays for a THREE.js init it won't use yet.
+function initLevelSelect() {
+  const introEl = document.getElementById("level-intro");
+  const confirmEl = document.getElementById("level-confirm");
+  const gridEl = document.getElementById("level-grid");
+  const nameEl = document.getElementById("level-confirm-name");
+  const taglineEl = document.getElementById("level-confirm-tagline");
+  const goalEl = document.getElementById("level-confirm-goal");
+  const playBtn = document.getElementById("btn-play-confirm");
+  const backBtn = document.getElementById("btn-level-back");
+  const manualBtn = document.getElementById("btn-manual-start");
+  const manualScreen = document.getElementById("manual-screen");
+  const manualCloseBtn = document.getElementById("btn-manual-close");
+
+  const unlocked = getUnlockedLevel();
+
+  function renderGrid() {
+    gridEl.innerHTML = "";
+    LEVELS.forEach((lvl, i) => {
+      const locked = i > unlocked;
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "level-card" + (locked ? " locked" : "");
+      card.disabled = locked;
+      card.innerHTML = `
+        <span class="level-card-num">${locked ? "🔒" : i + 1}</span>
+        <span class="level-card-name">${lvl.name}</span>
+        <span class="level-card-tagline">${locked ? "Complete the previous level to unlock" : lvl.tagline}</span>
+      `;
+      if (!locked) card.addEventListener("click", () => showConfirm(i));
+      gridEl.appendChild(card);
+    });
+  }
+
+  function showConfirm(index) {
+    const lvl = LEVELS[index];
+    nameEl.textContent = `Level ${index + 1}: ${lvl.name}`;
+    taglineEl.textContent = lvl.tagline;
+    goalEl.textContent = `Goal: ${lvl.goalText}`;
+    introEl.classList.add("hidden");
+    confirmEl.classList.remove("hidden");
+    playBtn.onclick = () => new Game(lvl, index);
+  }
+
+  backBtn.addEventListener("click", () => {
+    confirmEl.classList.add("hidden");
+    introEl.classList.remove("hidden");
+  });
+
+  manualBtn.addEventListener("click", () => manualScreen.classList.remove("hidden"));
+  manualCloseBtn.addEventListener("click", () => manualScreen.classList.add("hidden"));
+
+  renderGrid();
+
+  const pending = consumePendingLevel();
+  if (pending !== null && pending <= unlocked) showConfirm(pending);
+}
+
+window.addEventListener("DOMContentLoaded", initLevelSelect);

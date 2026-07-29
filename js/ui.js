@@ -33,6 +33,10 @@ export class UI {
       treesPlanted: document.getElementById("stat-planted"),
       loggersStopped: document.getElementById("stat-confronted"),
       manual: document.getElementById("manual-screen"),
+      hudLevel: document.getElementById("hud-level"),
+      victoryTitle: document.getElementById("victory-title"),
+      victorySubtitle: document.getElementById("victory-subtitle"),
+      btnNextLevel: document.getElementById("btn-next-level"),
     };
     this.plantedCount = 0;
     this.confrontedCount = 0;
@@ -42,8 +46,8 @@ export class UI {
     this.manualOpen = false;
   }
 
-  onPlay(cb) {
-    document.getElementById("btn-play").addEventListener("click", cb);
+  setLevelInfo(level, levelIndex) {
+    this.el.hudLevel.innerHTML = `Level ${levelIndex + 1}: ${level.name} &middot; Press <kbd>H</kbd> for the manual`;
   }
 
   onResume(cb) {
@@ -52,6 +56,14 @@ export class UI {
 
   onRestart(cb) {
     document.getElementById("btn-restart").addEventListener("click", cb);
+  }
+
+  onNextLevel(cb) {
+    this.el.btnNextLevel.addEventListener("click", cb);
+  }
+
+  onLevelSelect(cb) {
+    document.getElementById("btn-level-select").addEventListener("click", cb);
   }
 
   onManualOpen(cb) {
@@ -137,7 +149,7 @@ export class UI {
     }
   }
 
-  showVictory(stats) {
+  showVictory(stats, levelMeta = {}) {
     if (this.wonAlready) return;
     this.wonAlready = true;
     this.el.finalStats.innerHTML = `
@@ -145,6 +157,18 @@ export class UI {
       <p>Biodiversity index reached <strong>${stats.biodiversity.toFixed(0)}%</strong></p>
       <p>${this.plantedCount} trees planted &middot; ${this.confrontedCount} loggers stopped</p>
       <p>It took <strong>${stats.day}</strong> in-game days.</p>`;
+
+    if (levelMeta.levelName) {
+      this.el.victoryTitle.textContent = `🌳 ${levelMeta.levelName} Restored!`;
+    }
+    if (levelMeta.hasNext) {
+      this.el.victorySubtitle.textContent = `Up next: ${levelMeta.nextName}`;
+      this.el.btnNextLevel.classList.remove("hidden");
+    } else {
+      this.el.victorySubtitle.textContent = "You restored the whole valley across every level!";
+      this.el.btnNextLevel.classList.add("hidden");
+    }
+
     this.el.victory.classList.remove("hidden");
     document.exitPointerLock?.();
   }
