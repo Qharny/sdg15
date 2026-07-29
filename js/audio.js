@@ -94,4 +94,8 @@ export class AudioManager {
   splash() {
     this._tone(320, 0.15, "sine", 0.15);
   }
+
+  shoot() {
+    this._tone(760, 0.07, "triangle", 0.16);
+  }
 }

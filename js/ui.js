@@ -119,12 +119,12 @@ export class UI {
     const map = {
       plant: "Press [E] to plant a sapling here",
       water: "Press [Q] to irrigate this land",
-      confront: "Press [F] to confront the logger!",
+      shoot: "Click or [F] to fire a seed-pod!",
     };
     if (target && map[target.type]) {
       this.el.prompt.textContent = map[target.type];
       this.el.prompt.classList.remove("hidden");
-      this.el.prompt.classList.toggle("urgent", target.type === "confront");
+      this.el.prompt.classList.toggle("urgent", target.type === "shoot");
     } else {
       this.el.prompt.classList.add("hidden");
     }

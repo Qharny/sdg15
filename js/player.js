@@ -1,17 +1,18 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import { heightAt, clamp } from "./utils.js";
-import { CONFRONT_RADIUS } from "./loggers.js";
 
 const EYE_HEIGHT = 2.1;
 const MOVE_SPEED = 9;
+const SHOOT_COOLDOWN = 0.45;
 
 export class PlayerController {
-  constructor(camera, domElement, terrain, treeManager, loggerManager, ui, audio, opts = {}) {
+  constructor(camera, domElement, terrain, treeManager, loggerManager, projectileManager, ui, audio, opts = {}) {
     this.camera = camera;
     this.terrain = terrain;
     this.treeManager = treeManager;
     this.loggerManager = loggerManager;
+    this.projectileManager = projectileManager;
     this.ui = ui;
     this.audio = audio;
 
@@ -32,6 +33,7 @@ export class PlayerController {
     this.seedRegenTime = opts.seedRegenTime ?? 9;
     this.waterRegenRate = opts.waterRegenRate ?? 5.5;
     this.waterDrainPerUse = opts.waterDrainPerUse ?? 18;
+    this.shootCooldown = 0;
 
     this.seedRegenAccum = 0;
     this.target = { type: null, col: 0, row: 0 };
@@ -40,6 +42,9 @@ export class PlayerController {
 
     document.addEventListener("keydown", (e) => this._onKey(e, true));
     document.addEventListener("keyup", (e) => this._onKey(e, false));
+    domElement.addEventListener("mousedown", (e) => {
+      if (this.locked && e.button === 0) this._shoot();
+    });
 
     this.controls.addEventListener("lock", () => {
       this.locked = true;
@@ -71,7 +76,7 @@ export class PlayerController {
       case "KeyD": case "ArrowRight": this.keys.d = down; break;
       case "KeyE": if (down) this._plant(); break;
       case "KeyQ": if (down) this._water(); break;
-      case "KeyF": if (down) this._confront(); break;
+      case "KeyF": if (down) this._shoot(); break;
     }
   }
 
@@ -100,27 +105,28 @@ export class PlayerController {
     this.audio?.splash();
   }
 
-  _confront() {
-    if (this.loggerManager.confrontNearest(this.camera.position)) {
-      this.ui.toast("Logger scared off - keep patrolling your forest!", 2200);
-      this.ui.bumpConfronted();
-      this.audio?.chime();
-    }
+  _shoot() {
+    if (this.shootCooldown > 0) return;
+    this.shootCooldown = SHOOT_COOLDOWN;
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    this.projectileManager.spawn(this.camera.position, forward);
+    this.audio?.shoot();
   }
 
   _findTarget() {
     const pos = this.camera.position;
     const forward = new THREE.Vector3();
     this.camera.getWorldDirection(forward);
+
+    if (this.loggerManager.findAimedTarget(pos, forward)) {
+      this.target = { type: "shoot" };
+      return;
+    }
+
     const aheadX = pos.x + forward.x * 3;
     const aheadZ = pos.z + forward.z * 3;
     const { col, row } = this.terrain.cellAt(aheadX, aheadZ);
-
-    const loggerDist = this.loggerManager.nearestActiveDistance(pos);
-    if (loggerDist < CONFRONT_RADIUS) {
-      this.target = { type: "confront", col, row };
-      return;
-    }
 
     if (!this.terrain.inBounds(col, row)) { this.target = { type: null }; return; }
     const hasTree = this.treeManager.hasTreeAt(col, row);
@@ -169,6 +175,8 @@ export class PlayerController {
 
       this._findTarget();
     }
+
+    if (this.shootCooldown > 0) this.shootCooldown -= dt;
 
     this.water = clamp(this.water + this.waterRegenRate * dt, 0, this.maxWater);
     this.seedRegenAccum += dt;

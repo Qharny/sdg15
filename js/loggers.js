@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { heightAt, randRange } from "./utils.js";
 
-export const CONFRONT_RADIUS = 5.5;
+export const MAX_SHOOT_RANGE = 34;
+const AIM_COS_THRESHOLD = 0.985; // ~10 degree cone around the crosshair
 
 // Ambient/reaction barks shown in speech bubbles above a logger's head -
 // picked by state so the chatter reflects what they're actually doing.
@@ -111,32 +112,35 @@ export class LoggerManager {
     lg.chatTimer = duration;
   }
 
-  confrontNearest(playerPos) {
-    let best = null, bestD = CONFRONT_RADIUS;
-    for (const lg of this.loggers) {
-      if (!lg.active || lg.state !== "chopping") continue;
-      const d = lg.mesh.position.distanceTo(playerPos);
-      if (d < bestD) { bestD = d; best = lg; }
-    }
-    if (best) {
-      best.state = "retreating";
-      best.retreatTarget = this._edgeSpawnPoint();
-      best.barBg.visible = false;
-      best.barFg.visible = false;
-      this._say(best, CONFRONTED_LINES, 2.4);
-      best.chatCooldown = Infinity; // retreating/despawning - no more ambient chatter
-      if (this.onConfronted) this.onConfronted();
-      return true;
-    }
-    return false;
+  // Called by ProjectileManager when a seed-pod's flight path intersects an
+  // active logger. Returns false if the logger is no longer a valid target
+  // (e.g. it retreated the same frame the shot lands).
+  hitLogger(lg) {
+    if (!lg.active || (lg.state !== "seeking" && lg.state !== "chopping")) return false;
+    lg.state = "retreating";
+    lg.retreatTarget = this._edgeSpawnPoint();
+    lg.barBg.visible = false;
+    lg.barFg.visible = false;
+    this._say(lg, CONFRONTED_LINES, 2.4);
+    lg.chatCooldown = Infinity; // retreating/despawning - no more ambient chatter
+    if (this.onConfronted) this.onConfronted();
+    return true;
   }
 
-  nearestActiveDistance(playerPos) {
-    let best = Infinity;
+  // Finds the nearest active logger inside a narrow cone in front of the
+  // player and within range - used purely to drive the "Click to shoot"
+  // HUD prompt, independent of the projectile's own hit detection.
+  findAimedTarget(originPos, forwardDir, maxRange = MAX_SHOOT_RANGE) {
+    let best = null, bestDist = maxRange;
+    const toLogger = new THREE.Vector3();
     for (const lg of this.loggers) {
-      if (lg.active && lg.state === "chopping") {
-        best = Math.min(best, lg.mesh.position.distanceTo(playerPos));
-      }
+      if (!lg.active || (lg.state !== "seeking" && lg.state !== "chopping")) continue;
+      toLogger.copy(lg.mesh.position).sub(originPos);
+      const dist = toLogger.length();
+      if (dist > maxRange || dist < 0.001) continue;
+      toLogger.normalize();
+      if (toLogger.dot(forwardDir) < AIM_COS_THRESHOLD) continue;
+      if (dist < bestDist) { bestDist = dist; best = lg; }
     }
     return best;
   }

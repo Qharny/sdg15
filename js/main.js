@@ -4,6 +4,7 @@ import { TreeManager } from "./trees.js";
 import { AnimalManager } from "./animals.js";
 import { LoggerManager } from "./loggers.js";
 import { ChatBubbleManager } from "./chatBubbles.js";
+import { ProjectileManager } from "./projectiles.js";
 import { PlayerController } from "./player.js";
 import { UI } from "./ui.js";
 import { AudioManager } from "./audio.js";
@@ -47,12 +48,18 @@ class Game {
     this.audio = new AudioManager();
     this.player = new PlayerController(
       this.camera, this.renderer.domElement,
-      this.terrain, this.trees, this.loggers, this.ui, this.audio, level
+      this.terrain, this.trees, this.loggers, this.projectiles, this.ui, this.audio, level
     );
 
     this.loggers.onTreeLost = () => {
       this.ui.toast("A tree was cut down! \u{26A0}\u{FE0F}", 2200);
       this.audio.alert();
+    };
+
+    this.projectiles.onHit = () => {
+      this.ui.toast("Logger scared off - keep patrolling your forest!", 2000);
+      this.ui.bumpConfronted();
+      this.audio.chime();
     };
 
     this.player.onManualToggle = () => {
@@ -186,6 +193,7 @@ class Game {
     this.animals = new AnimalManager(this.scene, this.terrain, this.trees);
     this.loggers = new LoggerManager(this.scene, this.terrain, this.trees, this.level);
     this.chat = new ChatBubbleManager(this.loggers);
+    this.projectiles = new ProjectileManager(this.scene, this.terrain, this.loggers);
   }
 
   _initSandParticles() {
@@ -287,6 +295,7 @@ class Game {
     this.loggers.update(dt);
     this.loggers.faceBillboards(this.camera.quaternion);
     this.chat.update(this.camera, this.renderer);
+    this.projectiles.update(dt);
     this.player.update(dt);
 
     const forestPct = this.terrain.forestCoverPct();
