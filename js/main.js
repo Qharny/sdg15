@@ -5,11 +5,29 @@ import { AnimalManager } from "./animals.js";
 import { LoggerManager } from "./loggers.js";
 import { PlayerController } from "./player.js";
 import { UI } from "./ui.js";
+import { AudioManager } from "./audio.js";
 import { randRange } from "./utils.js";
 
 const DAY_LENGTH = 100; // seconds per in-game day
 const WIN_FOREST_PCT = 55;
 const WIN_BIODIVERSITY = 55;
+
+// Radial-gradient canvas texture for the sun's glow sprite - generated in
+// code so no image asset needs to be fetched.
+function makeGlowTexture() {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, "rgba(255,250,225,1)");
+  grad.addColorStop(0.35, "rgba(255,240,190,0.55)");
+  grad.addColorStop(1, "rgba(255,240,190,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  return tex;
+}
 
 class Game {
   constructor() {
@@ -18,18 +36,26 @@ class Game {
     this.elapsed = 0;
 
     this._initScene();
+    this._initSky();
     this._initWorld();
     this._initSandParticles();
 
     this.ui = new UI();
+    this.audio = new AudioManager();
     this.player = new PlayerController(
       this.camera, this.renderer.domElement,
-      this.terrain, this.trees, this.loggers, this.ui
+      this.terrain, this.trees, this.loggers, this.ui, this.audio
     );
 
-    this.loggers.onTreeLost = () => this.ui.toast("A tree was cut down! \u{26A0}\u{FE0F}", 2200);
+    this.loggers.onTreeLost = () => {
+      this.ui.toast("A tree was cut down! \u{26A0}\u{FE0F}", 2200);
+      this.audio.alert();
+    };
 
-    this.ui.onPlay(() => this.player.lock());
+    this.ui.onPlay(() => {
+      this.player.lock();
+      this.audio.start();
+    });
     this.ui.onRestart(() => location.reload());
 
     window.addEventListener("resize", () => this._onResize());
@@ -70,6 +96,50 @@ class Game {
     this.sun.shadow.bias = -0.0015;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
+  }
+
+  _initSky() {
+    const geo = new THREE.SphereGeometry(300, 24, 16);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        horizonColor: { value: new THREE.Color(0xbfe3ff) },
+        zenithColor: { value: new THREE.Color(0x2a6fd8) },
+      },
+      vertexShader: `
+        varying vec3 vPos;
+        void main() {
+          vPos = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vPos;
+        uniform vec3 horizonColor;
+        uniform vec3 zenithColor;
+        void main() {
+          float h = normalize(vPos).y;
+          float t = smoothstep(-0.15, 0.55, h);
+          gl_FragColor = vec4(mix(horizonColor, zenithColor, t), 1.0);
+        }
+      `,
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+    });
+    this.sky = new THREE.Mesh(geo, mat);
+    this.scene.add(this.sky);
+    this.scene.background = null;
+
+    const sunMat = new THREE.SpriteMaterial({
+      map: makeGlowTexture(),
+      color: 0xffffff,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+    });
+    this.sunSprite = new THREE.Sprite(sunMat);
+    this.sunSprite.scale.set(40, 40, 1);
+    this.scene.add(this.sunSprite);
   }
 
   _initWorld() {
@@ -130,11 +200,21 @@ class Game {
     this.sun.intensity = 0.5 + height01 * 1.2;
     this.hemi.intensity = 0.35 + height01 * 0.55;
 
-    const day = new THREE.Color(0x8fd1ff);
-    const night = new THREE.Color(0x1c2c4a);
-    const sky = night.clone().lerp(day, height01);
-    this.scene.background = sky;
-    this.scene.fog.color = sky;
+    const dayHorizon = new THREE.Color(0xbfe3ff);
+    const dayZenith = new THREE.Color(0x2a6fd8);
+    const nightHorizon = new THREE.Color(0x0f1b33);
+    const nightZenith = new THREE.Color(0x03050c);
+    const horizon = nightHorizon.clone().lerp(dayHorizon, height01);
+    const zenith = nightZenith.clone().lerp(dayZenith, height01);
+
+    this.sky.material.uniforms.horizonColor.value.copy(horizon);
+    this.sky.material.uniforms.zenithColor.value.copy(zenith);
+    this.sky.position.copy(camPos);
+    this.scene.fog.color = horizon;
+
+    const sunDir = this.sun.position.clone().sub(camPos).normalize();
+    this.sunSprite.position.copy(camPos).addScaledVector(sunDir, 280);
+    this.sunSprite.material.opacity = 0.25 + height01 * 0.75;
 
     this.day = Math.floor(this.elapsed / DAY_LENGTH) + 1;
   }

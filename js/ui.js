@@ -53,7 +53,7 @@ export class UI {
   }
 
   onPointerLock(locked) {
-    this.el.pause.classList.toggle("hidden", locked);
+    this.el.pause.classList.toggle("hidden", locked || this.wonAlready);
     this.el.crosshair.classList.toggle("hidden", !locked);
     if (locked) {
       this.el.start.classList.add("hidden");

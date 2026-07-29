@@ -1,14 +1,15 @@
 import * as THREE from "three";
-import { heightAt } from "./utils.js";
+import { heightAt, randRange } from "./utils.js";
 
 const MAX_TREES = 900;
+const LOBES = 3;
 
 export class TreeManager {
   constructor(scene, terrain) {
     this.scene = scene;
     this.terrain = terrain;
 
-    const trunkGeo = new THREE.CylinderGeometry(0.12, 0.18, 1, 6);
+    const trunkGeo = new THREE.CylinderGeometry(0.1, 0.2, 1, 6);
     trunkGeo.translate(0, 0.5, 0);
     const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2b });
     this.trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, MAX_TREES);
@@ -16,23 +17,45 @@ export class TreeManager {
     this.trunks.count = 0;
     scene.add(this.trunks);
 
-    const foliageGeo = new THREE.ConeGeometry(1, 1.8, 7);
-    foliageGeo.translate(0, 1.2, 0);
-    const foliageMat = new THREE.MeshLambertMaterial({ color: 0x2f7d3a });
-    this.foliage = new THREE.InstancedMesh(foliageGeo, foliageMat, MAX_TREES);
-    this.foliage.castShadow = true;
-    this.foliage.count = 0;
-    scene.add(this.foliage);
+    // Canopy is built from several overlapping low-poly lobes per tree
+    // instead of one perfect cone, so foliage reads as irregular/organic.
+    const foliageGeo = new THREE.IcosahedronGeometry(1, 1);
+    this.foliageLobes = [];
+    for (let i = 0; i < LOBES; i++) {
+      const hueJitter = 0.85 + i * 0.08;
+      const mat = new THREE.MeshLambertMaterial({
+        color: new THREE.Color(0.16 * hueJitter, 0.5 * hueJitter, 0.2 * hueJitter),
+      });
+      const im = new THREE.InstancedMesh(foliageGeo, mat, MAX_TREES);
+      im.castShadow = true;
+      im.count = 0;
+      scene.add(im);
+      this.foliageLobes.push(im);
+    }
 
     this.cellToSlot = new Map(); // "col,row" -> slot index
-    this.slots = []; // { col, row, growth, active }
+    this.slots = []; // per-slot growth/variance state
     this.freeSlots = [];
     for (let i = 0; i < MAX_TREES; i++) {
-      this.slots.push({ col: -1, row: -1, growth: 0, active: false });
+      this.slots.push({
+        col: -1, row: -1, growth: 0, active: false,
+        swaySeed: Math.random() * Math.PI * 2,
+        swaySpeed: randRange(0.5, 0.9),
+        tilt: randRange(-0.05, 0.05),
+        trunkScaleXZ: randRange(0.85, 1.2),
+        heightScale: randRange(0.85, 1.35),
+        lobes: Array.from({ length: LOBES }, () => ({
+          ox: randRange(-0.45, 0.45),
+          oz: randRange(-0.45, 0.45),
+          oy: randRange(0.9, 1.7),
+          scale: randRange(0.65, 1.05),
+        })),
+      });
       this.freeSlots.push(i);
     }
     this._dummy = new THREE.Object3D();
-    this._growing = new Set();
+    this.activeSlots = new Set();
+    this._time = 0;
   }
 
   key(col, row) {
@@ -54,10 +77,10 @@ export class TreeManager {
     s.growth = 0.08;
     s.active = true;
     this.cellToSlot.set(k, slot);
-    this._growing.add(slot);
-    this._applyMatrix(slot);
+    this.activeSlots.add(slot);
     this.trunks.count = Math.max(this.trunks.count, slot + 1);
-    this.foliage.count = Math.max(this.foliage.count, slot + 1);
+    for (const lobe of this.foliageLobes) lobe.count = Math.max(lobe.count, slot + 1);
+    this._applyMatrix(slot);
     return true;
   }
 
@@ -70,14 +93,14 @@ export class TreeManager {
     s.growth = 0;
     this.cellToSlot.delete(k);
     this.freeSlots.push(slot);
-    this._growing.delete(slot);
+    this.activeSlots.delete(slot);
     this._dummy.position.set(0, -999, 0);
     this._dummy.scale.set(0.001, 0.001, 0.001);
     this._dummy.updateMatrix();
     this.trunks.setMatrixAt(slot, this._dummy.matrix);
-    this.foliage.setMatrixAt(slot, this._dummy.matrix);
+    for (const lobe of this.foliageLobes) lobe.setMatrixAt(slot, this._dummy.matrix);
     this.trunks.instanceMatrix.needsUpdate = true;
-    this.foliage.instanceMatrix.needsUpdate = true;
+    for (const lobe of this.foliageLobes) lobe.instanceMatrix.needsUpdate = true;
     return true;
   }
 
@@ -89,7 +112,7 @@ export class TreeManager {
 
   matureCount() {
     let n = 0;
-    for (const s of this.slots) if (s.active && s.growth >= 1) n++;
+    for (const slot of this.activeSlots) if (this.slots[slot].growth >= 1) n++;
     return n;
   }
 
@@ -102,39 +125,43 @@ export class TreeManager {
     const { x, z } = this.terrain.worldPos(s.col, s.row);
     const y = heightAt(x, z);
     const growth = s.growth;
+    const sway = Math.sin(this._time * s.swaySpeed + s.swaySeed) * 0.05 * growth;
+    const baseRotY = (s.col * 928371 + s.row * 12331) % 6.283;
+
     this._dummy.position.set(x, y, z);
-    this._dummy.rotation.y = (s.col * 928371 + s.row * 12331) % 6.283;
-    this._dummy.scale.set(growth, growth, growth);
+    this._dummy.rotation.set(s.tilt, baseRotY, s.tilt + sway * 0.4);
+    this._dummy.scale.set(growth * s.trunkScaleXZ, growth * s.heightScale, growth * s.trunkScaleXZ);
     this._dummy.updateMatrix();
     this.trunks.setMatrixAt(slot, this._dummy.matrix);
-    this.foliage.setMatrixAt(slot, this._dummy.matrix);
+
+    for (let i = 0; i < LOBES; i++) {
+      const lobe = s.lobes[i];
+      this._dummy.position.set(
+        x + lobe.ox * growth,
+        y + lobe.oy * growth * s.heightScale,
+        z + lobe.oz * growth
+      );
+      this._dummy.rotation.set(0, baseRotY + i, sway);
+      const ls = growth * lobe.scale;
+      this._dummy.scale.set(ls, ls * 0.85, ls);
+      this._dummy.updateMatrix();
+      this.foliageLobes[i].setMatrixAt(slot, this._dummy.matrix);
+    }
   }
 
   update(dt) {
-    if (this._growing.size === 0) return;
-    const done = [];
-    for (const slot of this._growing) {
+    this._time += dt;
+    if (this.activeSlots.size === 0) return;
+    for (const slot of this.activeSlots) {
       const s = this.slots[slot];
-      if (!s.active) { done.push(slot); continue; }
-      const health = this.terrain.getHealth(s.col, s.row);
-      const rate = 0.06 + health * 0.12;
-      s.growth = Math.min(1, s.growth + rate * dt);
+      if (s.growth < 1) {
+        const health = this.terrain.getHealth(s.col, s.row);
+        const rate = 0.06 + health * 0.12;
+        s.growth = Math.min(1, s.growth + rate * dt);
+      }
       this._applyMatrix(slot);
-      if (s.growth >= 1) done.push(slot);
     }
-    for (const slot of done) this._growing.delete(slot);
     this.trunks.instanceMatrix.needsUpdate = true;
-    this.foliage.instanceMatrix.needsUpdate = true;
-  }
-
-  nearestTreeCell(x, z, maxDist = Infinity) {
-    let best = null, bestD = maxDist;
-    for (const [k, slot] of this.cellToSlot) {
-      const s = this.slots[slot];
-      const { x: tx, z: tz } = this.terrain.worldPos(s.col, s.row);
-      const d = Math.hypot(tx - x, tz - z);
-      if (d < bestD) { bestD = d; best = s; }
-    }
-    return best;
+    for (const lobe of this.foliageLobes) lobe.instanceMatrix.needsUpdate = true;
   }
 }

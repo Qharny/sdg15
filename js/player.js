@@ -5,18 +5,23 @@ import { CONFRONT_RADIUS } from "./loggers.js";
 
 const EYE_HEIGHT = 2.1;
 const MOVE_SPEED = 9;
-const INTERACT_RADIUS = 6.5;
 
 export class PlayerController {
-  constructor(camera, domElement, terrain, treeManager, loggerManager, ui) {
+  constructor(camera, domElement, terrain, treeManager, loggerManager, ui, audio) {
     this.camera = camera;
     this.terrain = terrain;
     this.treeManager = treeManager;
     this.loggerManager = loggerManager;
     this.ui = ui;
+    this.audio = audio;
 
     this.controls = new PointerLockControls(camera, domElement);
     camera.position.set(0, EYE_HEIGHT, 4);
+    this.baseFov = camera.fov;
+
+    this.bobPhase = 0;
+    this.bobBlend = 0;
+    this._lastStepPhase = 0;
 
     this.keys = { w: false, a: false, s: false, d: false };
     this.seeds = 15;
@@ -28,7 +33,6 @@ export class PlayerController {
     this.target = { type: null, col: 0, row: 0 };
 
     this.locked = false;
-    this._velocity = new THREE.Vector3();
 
     document.addEventListener("keydown", (e) => this._onKey(e, true));
     document.addEventListener("keyup", (e) => this._onKey(e, false));
@@ -67,6 +71,7 @@ export class PlayerController {
       this.seeds -= 1;
       this.ui.toast("Sapling planted \u{1F331}", 1400);
       this.ui.bumpPlanted();
+      this.audio?.chime();
     }
   }
 
@@ -80,12 +85,14 @@ export class PlayerController {
     this.terrain.waterAround(x, z, 1, 0.24);
     this.water -= 18;
     this.ui.toast("Land irrigated \u{1F4A7}", 1200);
+    this.audio?.splash();
   }
 
   _confront() {
     if (this.loggerManager.confrontNearest(this.camera.position)) {
       this.ui.toast("Logger scared off - keep patrolling your forest!", 2200);
       this.ui.bumpConfronted();
+      this.audio?.chime();
     }
   }
 
@@ -122,14 +129,31 @@ export class PlayerController {
         0
       );
       const forwardAmount = (this.keys.w ? 1 : 0) - (this.keys.s ? 1 : 0);
+      const moving = forwardAmount !== 0 || dir.x !== 0;
       if (forwardAmount !== 0) this.controls.moveForward(forwardAmount * MOVE_SPEED * dt);
       if (dir.x !== 0) this.controls.moveRight(dir.x * MOVE_SPEED * dt);
 
       const p = this.camera.position;
-      p.y = heightAt(p.x, p.z) + EYE_HEIGHT;
       const half = this.terrain.half - 1;
       p.x = clamp(p.x, -half, half);
       p.z = clamp(p.z, -half, half);
+
+      // Head-bob: eases toward a moving/idle blend so it starts and stops
+      // smoothly rather than snapping, then rides a sine wave for the bob.
+      this.bobBlend += ((moving ? 1 : 0) - this.bobBlend) * Math.min(1, dt * 6);
+      if (moving) this.bobPhase += dt * MOVE_SPEED * 0.9;
+      const bobY = Math.sin(this.bobPhase * 2) * 0.055 * this.bobBlend;
+      const idleSway = Math.sin(performance.now() * 0.0006) * 0.012;
+      p.y = heightAt(p.x, p.z) + EYE_HEIGHT + bobY + idleSway;
+
+      this.camera.fov = this.baseFov + Math.sin(this.bobPhase) * 0.6 * this.bobBlend;
+      this.camera.updateProjectionMatrix();
+
+      if (this.audio) {
+        const stepCycle = (this.bobPhase * 2) % (Math.PI * 2);
+        if (moving && stepCycle < this._lastStepPhase) this.audio.footstep();
+        this._lastStepPhase = stepCycle;
+      }
 
       this._findTarget();
     }

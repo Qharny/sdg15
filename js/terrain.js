@@ -1,9 +1,10 @@
 import * as THREE from "three";
-import { clamp, healthToColor, heightAt } from "./utils.js";
+import { clamp, healthToColor, heightAt, randRange } from "./utils.js";
 
 const DESERT_THRESHOLD = 0.14;
 const PLANTABLE_THRESHOLD = 0.16;
 const MATURE_THRESHOLD = 0.72;
+const GRASS_THRESHOLD = 0.5;
 
 export class Terrain {
   constructor(scene, size = 46, cellSize = 4.2) {
@@ -15,31 +16,9 @@ export class Terrain {
     this.health = new Float32Array(size * size);
     this._generateInitialHealth();
 
-    const geo = new THREE.PlaneGeometry(cellSize * 0.92, cellSize * 0.92);
-    geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-    this.mesh = new THREE.InstancedMesh(geo, mat, size * size);
-    this.mesh.receiveShadow = true;
-    this.mesh.castShadow = false;
-
-    const dummy = new THREE.Object3D();
-    const color = new THREE.Color();
-    for (let row = 0; row < size; row++) {
-      for (let col = 0; col < size; col++) {
-        const idx = this.index(col, row);
-        const { x, z } = this.worldPos(col, row);
-        dummy.position.set(x, heightAt(x, z), z);
-        dummy.rotation.y = 0;
-        dummy.updateMatrix();
-        this.mesh.setMatrixAt(idx, dummy.matrix);
-        const [r, g, b] = healthToColor(this.health[idx]);
-        color.setRGB(r, g, b);
-        this.mesh.setColorAt(idx, color);
-      }
-    }
-    this.mesh.instanceMatrix.needsUpdate = true;
-    this.mesh.instanceColor.needsUpdate = true;
-    scene.add(this.mesh);
+    this._buildGroundMesh();
+    this._buildDecor();
+    this._refreshAllDecor();
 
     this._dirty = new Set();
     this._tickAccum = 0;
@@ -66,6 +45,91 @@ export class Terrain {
         this.health[this.index(col, row)] = clamp(h, 0.02, 1);
       }
     }
+  }
+
+  // A single continuous, smoothly-shaded mesh whose vertices align exactly
+  // 1:1 with health-grid cells (vertex spacing == cellSize), so the ground
+  // reads as rolling terrain with soft color gradients instead of a tiled
+  // checkerboard of flat squares.
+  _buildGroundMesh() {
+    const { size, cellSize } = this;
+    const span = (size - 1) * cellSize;
+    const geo = new THREE.PlaneGeometry(span, span, size - 1, size - 1);
+    geo.rotateX(-Math.PI / 2);
+
+    const pos = geo.attributes.position;
+    const colors = new Float32Array(pos.count * 3);
+    const color = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      pos.setY(i, heightAt(x, z));
+      const [r, g, b] = healthToColor(this.health[i]);
+      color.setRGB(r, g, b);
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+    }
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.mesh = new THREE.Mesh(geo, mat);
+    this.mesh.receiveShadow = true;
+    this.scene.add(this.mesh);
+    this._colorAttr = geo.attributes.color;
+    this._posAttr = pos;
+  }
+
+  _buildDecor() {
+    const count = this.size * this.size;
+    const grassGeo = new THREE.IcosahedronGeometry(0.24, 0);
+    const grassMat = new THREE.MeshLambertMaterial({ color: 0x3c8a34 });
+    this.grass = new THREE.InstancedMesh(grassGeo, grassMat, count);
+    this.grass.castShadow = false;
+    this.grass.receiveShadow = false;
+
+    const rockGeo = new THREE.IcosahedronGeometry(0.3, 0);
+    const rockMat = new THREE.MeshLambertMaterial({ color: 0x8a8478 });
+    this.rocks = new THREE.InstancedMesh(rockGeo, rockMat, count);
+    this.rocks.castShadow = true;
+
+    this._decorDummy = new THREE.Object3D();
+    this._decorSeed = new Float32Array(count);
+    for (let i = 0; i < count; i++) this._decorSeed[i] = Math.random();
+
+    this.scene.add(this.grass, this.rocks);
+  }
+
+  _updateDecorAt(idx) {
+    const col = idx % this.size;
+    const row = (idx / this.size) | 0;
+    const { x, z } = this.worldPos(col, row);
+    const y = heightAt(x, z);
+    const h = this.health[idx];
+    const seed = this._decorSeed[idx];
+    const jitterX = (seed - 0.5) * this.cellSize * 0.7;
+    const jitterZ = ((seed * 7.13) % 1 - 0.5) * this.cellSize * 0.7;
+
+    const grassScale = h >= GRASS_THRESHOLD ? clamp((h - GRASS_THRESHOLD) / (1 - GRASS_THRESHOLD), 0, 1) * (0.6 + seed * 0.7) : 0;
+    this._decorDummy.position.set(x + jitterX, y, z + jitterZ);
+    this._decorDummy.rotation.y = seed * 6.283;
+    this._decorDummy.scale.setScalar(grassScale);
+    this._decorDummy.updateMatrix();
+    this.grass.setMatrixAt(idx, this._decorDummy.matrix);
+
+    const rockScale = h < DESERT_THRESHOLD ? (0.4 + seed * 0.9) * (seed > 0.55 ? 1 : 0) : 0;
+    this._decorDummy.position.set(x - jitterX, y, z - jitterZ);
+    this._decorDummy.rotation.set(seed * 3, seed * 5, seed * 2);
+    this._decorDummy.scale.setScalar(rockScale);
+    this._decorDummy.updateMatrix();
+    this.rocks.setMatrixAt(idx, this._decorDummy.matrix);
+  }
+
+  _refreshAllDecor() {
+    for (let i = 0; i < this.health.length; i++) this._updateDecorAt(i);
+    this.grass.instanceMatrix.needsUpdate = true;
+    this.rocks.instanceMatrix.needsUpdate = true;
   }
 
   index(col, row) {
@@ -181,13 +245,14 @@ export class Terrain {
     }
 
     if (this._dirty.size) {
-      const color = new THREE.Color();
       for (const idx of this._dirty) {
         const [r, g, b] = healthToColor(this.health[idx]);
-        color.setRGB(r, g, b);
-        this.mesh.setColorAt(idx, color);
+        this._colorAttr.setXYZ(idx, r, g, b);
+        this._updateDecorAt(idx);
       }
-      this.mesh.instanceColor.needsUpdate = true;
+      this._colorAttr.needsUpdate = true;
+      this.grass.instanceMatrix.needsUpdate = true;
+      this.rocks.instanceMatrix.needsUpdate = true;
       this._dirty.clear();
     }
   }
