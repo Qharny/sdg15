@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { heightAt, randRange, clamp } from "./utils.js";
+import { randRange, clamp } from "./utils.js";
 
 const MAX_ANIMALS = 26;
 const SPECIES = [
@@ -46,6 +46,15 @@ export class AnimalManager {
     return clamp((this.animals.length / cap) * 100, 0, 100);
   }
 
+  // Used by PoacherManager when a capture completes.
+  removeAnimal(a) {
+    const idx = this.animals.indexOf(a);
+    if (idx < 0) return false;
+    this.scene.remove(a.mesh);
+    this.animals.splice(idx, 1);
+    return true;
+  }
+
   _pickHomeCell() {
     const { size } = this.terrain;
     for (let tries = 0; tries < 24; tries++) {
@@ -65,7 +74,7 @@ export class AnimalManager {
     const species = SPECIES[(Math.random() * SPECIES.length) | 0];
     const mesh = buildCritterMesh(species);
     const { x, z } = this.terrain.worldPos(home.col, home.row);
-    mesh.position.set(x, heightAt(x, z), z);
+    mesh.position.set(x, this.terrain.groundHeight(x, z), z);
     this.scene.add(mesh);
     this.animals.push({
       mesh,
@@ -139,7 +148,7 @@ export class AnimalManager {
         p.z += (dz / dist) * step;
         a.mesh.rotation.y = Math.atan2(dx, dz);
       }
-      p.y = heightAt(p.x, p.z);
+      p.y = this.terrain.groundHeight(p.x, p.z);
     }
   }
 }

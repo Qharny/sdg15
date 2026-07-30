@@ -49,14 +49,16 @@ export class AudioManager {
     src.start();
   }
 
-  footstep() {
+  // `groundHealth` (0-1) lets footsteps sound duller/softer on dry, bare
+  // ground and crisper on healthy land, without needing separate samples.
+  footstep(groundHealth = 0.5) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const src = this.ctx.createBufferSource();
     src.buffer = this._noiseBuffer(0.12);
     const filter = this.ctx.createBiquadFilter();
     filter.type = "bandpass";
-    filter.frequency.value = 180 + Math.random() * 80;
+    filter.frequency.value = 140 + groundHealth * 90 + Math.random() * 80;
     filter.Q.value = 0.9;
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.22, t);
@@ -82,13 +84,28 @@ export class AudioManager {
   }
 
   chime() {
-    this._tone(660, 0.22, "sine", 0.25);
-    this._tone(880, 0.28, "sine", 0.2, 0.08);
+    // Slight per-call pitch jitter so repeated planting doesn't sound robotic.
+    const jitter = 0.95 + Math.random() * 0.1;
+    this._tone(660 * jitter, 0.22, "sine", 0.25);
+    this._tone(880 * jitter, 0.28, "sine", 0.2, 0.08);
   }
 
   alert() {
     this._tone(180, 0.35, "sawtooth", 0.18);
     this._tone(140, 0.4, "sawtooth", 0.14, 0.12);
+  }
+
+  // Distinct from the logger `alert()` timbre (square vs sawtooth, higher
+  // pitch) so players can tell the two threats apart by ear.
+  poacherAlert() {
+    this._tone(310, 0.28, "square", 0.16);
+    this._tone(220, 0.32, "square", 0.12, 0.1);
+  }
+
+  fanfare() {
+    this._tone(523.25, 0.18, "triangle", 0.22);
+    this._tone(659.25, 0.18, "triangle", 0.22, 0.1);
+    this._tone(783.99, 0.32, "triangle", 0.24, 0.2);
   }
 
   splash() {
@@ -97,5 +114,48 @@ export class AudioManager {
 
   shoot() {
     this._tone(760, 0.07, "triangle", 0.16);
+  }
+
+  crackle() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._noiseBuffer(0.2);
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = 1200 + Math.random() * 800;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.exponentialRampToValueAtTime(0.14, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    src.connect(filter).connect(gain).connect(this.master);
+    src.start(t);
+    src.stop(t + 0.2);
+  }
+
+  // Toggled on/off by the game loop based on whether it's currently raining
+  // - a soft, higher-pitched hiss layered on top of the wind loop.
+  setRain(active) {
+    if (!this.ctx) return;
+    if (active && !this._rain) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this._noiseBuffer(4);
+      src.loop = true;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "highpass";
+      filter.frequency.value = 2200;
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0;
+      src.connect(filter).connect(gain).connect(this.master);
+      src.start();
+      gain.gain.linearRampToValueAtTime(0.1, this.ctx.currentTime + 1.5);
+      this._rain = { src, gain };
+    } else if (!active && this._rain) {
+      const { src, gain } = this._rain;
+      const stopAt = this.ctx.currentTime + 1.5;
+      gain.gain.linearRampToValueAtTime(0, stopAt);
+      src.stop(stopAt + 0.05);
+      this._rain = null;
+    }
   }
 }

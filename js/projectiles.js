@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { heightAt } from "./utils.js";
 
 const SPEED = 42;
 const MAX_LIFE = 1.4;
@@ -39,10 +38,13 @@ function makeBurstTexture() {
 }
 
 export class ProjectileManager {
-  constructor(scene, terrain, loggerManager) {
+  // huntManagers: array of managers exposing huntableUnits() -> [{mesh,...}]
+  // and hit(unit) - LoggerManager and PoacherManager both implement this so
+  // a single seed-pod can hit either kind of threat.
+  constructor(scene, terrain, huntManagers) {
     this.scene = scene;
     this.terrain = terrain;
-    this.loggerManager = loggerManager;
+    this.huntManagers = Array.isArray(huntManagers) ? huntManagers : [huntManagers];
     this.onHit = null;
     this.onMiss = null;
 
@@ -88,6 +90,20 @@ export class ProjectileManager {
     b._scale = scale;
   }
 
+  _findHit(pos) {
+    for (const mgr of this.huntManagers) {
+      if (!mgr) continue;
+      for (const unit of mgr.huntableUnits()) {
+        const base = unit.mesh.position;
+        const dx = pos.x - base.x;
+        const dy = pos.y - (base.y + CHEST_HEIGHT);
+        const dz = pos.z - base.z;
+        if (dx * dx + dy * dy + dz * dz < HIT_RADIUS * HIT_RADIUS) return { mgr, unit };
+      }
+    }
+    return null;
+  }
+
   update(dt) {
     for (const p of this.pool) {
       if (!p.active) continue;
@@ -96,23 +112,15 @@ export class ProjectileManager {
       p.mesh.rotation.x += dt * 16;
       p.mesh.rotation.y += dt * 11;
 
-      let hitLogger = null;
-      for (const lg of this.loggerManager.loggers) {
-        if (!lg.active || (lg.state !== "seeking" && lg.state !== "chopping")) continue;
-        const base = lg.mesh.position;
-        const dx = p.mesh.position.x - base.x;
-        const dy = p.mesh.position.y - (base.y + CHEST_HEIGHT);
-        const dz = p.mesh.position.z - base.z;
-        if (dx * dx + dy * dy + dz * dz < HIT_RADIUS * HIT_RADIUS) { hitLogger = lg; break; }
-      }
+      const hitInfo = this._findHit(p.mesh.position);
 
-      const groundY = heightAt(p.mesh.position.x, p.mesh.position.z);
+      const groundY = this.terrain.groundHeight(p.mesh.position.x, p.mesh.position.z);
       const expired = p.life > MAX_LIFE || p.mesh.position.y < groundY - 0.2;
 
-      if (hitLogger) {
-        this.loggerManager.hitLogger(hitLogger);
+      if (hitInfo) {
+        hitInfo.mgr.hit(hitInfo.unit);
         this._burst(p.mesh.position, 2.1);
-        if (this.onHit) this.onHit(p.mesh.position.clone());
+        if (this.onHit) this.onHit(p.mesh.position.clone(), hitInfo.mgr);
         p.active = false;
         p.mesh.visible = false;
       } else if (expired) {

@@ -3,13 +3,21 @@ import { Terrain } from "./terrain.js";
 import { TreeManager } from "./trees.js";
 import { AnimalManager } from "./animals.js";
 import { LoggerManager } from "./loggers.js";
+import { PoacherManager } from "./poachers.js";
 import { ChatBubbleManager } from "./chatBubbles.js";
 import { ProjectileManager } from "./projectiles.js";
 import { PlayerController } from "./player.js";
 import { UI } from "./ui.js";
 import { AudioManager } from "./audio.js";
+import { EnvironmentManager } from "./environment.js";
+import { FireManager } from "./fire.js";
+import { AchievementManager } from "./achievements.js";
+import { Minimap } from "./minimap.js";
 import { randRange } from "./utils.js";
-import { LEVELS, getUnlockedLevel, unlockLevel, consumePendingLevel, setPendingLevel } from "./levels.js";
+import {
+  LEVELS, getUnlockedLevel, unlockLevel, consumePendingLevel, setPendingLevel,
+  getBestResult, recordResult, getBestEndlessDays, recordEndlessDays,
+} from "./levels.js";
 
 const DAY_LENGTH = 100; // seconds per in-game day
 
@@ -30,6 +38,12 @@ function makeGlowTexture() {
   return tex;
 }
 
+const WEATHER_TOASTS = {
+  clear: "The sky clears up. \u{2600}\u{FE0F}",
+  rain: "\u{1F327}\u{FE0F} Rain rolls in - plants grow faster and your canteen refills quicker.",
+  drought: "\u{1F525} A drought grips the valley - the land dries out fast and fire risk climbs.",
+};
+
 class Game {
   constructor(level, levelIndex) {
     this.level = level;
@@ -37,11 +51,16 @@ class Game {
     this.canvas = document.getElementById("scene");
     this.clock = new THREE.Clock();
     this.elapsed = 0;
+    this._lastEscalateDay = 1;
+    this._crackleAccum = 0;
 
     this._initScene();
     this._initSky();
     this._initWorld();
     this._initSandParticles();
+
+    this.environment = new EnvironmentManager();
+    this.achievements = new AchievementManager();
 
     this.ui = new UI();
     this.ui.setLevelInfo(level, levelIndex);
@@ -50,16 +69,53 @@ class Game {
       this.camera, this.renderer.domElement,
       this.terrain, this.trees, this.loggers, this.projectiles, this.ui, this.audio, level
     );
+    this.player.fireManager = this.fire;
+    this.player.poacherManager = this.poachers;
+    this.player.onPlant = () => this.achievements.notePlanted();
 
     this.loggers.onTreeLost = () => {
       this.ui.toast("A tree was cut down! \u{26A0}\u{FE0F}", 2200);
       this.audio.alert();
     };
 
-    this.projectiles.onHit = () => {
-      this.ui.toast("Logger scared off - keep patrolling your forest!", 2000);
+    this.poachers.onAnimalLost = () => {
+      this.ui.toast("A poacher caught one of your animals! \u{1F578}\u{FE0F}", 2200);
+      this.audio.poacherAlert();
+    };
+
+    // A single seed-pod can hit either a logger or a poacher - ProjectileManager
+    // tells us which manager owned the unit it hit so the toast/achievement
+    // credit goes to the right threat type.
+    this.projectiles.onHit = (pos, mgr) => {
+      if (mgr === this.poachers) {
+        this.ui.toast("Poacher scared off - good aim!", 2000);
+        this.achievements.notePoacherStopped();
+      } else {
+        this.ui.toast("Logger scared off - keep patrolling your forest!", 2000);
+        this.achievements.noteLoggerStopped();
+      }
       this.ui.bumpConfronted();
       this.audio.chime();
+    };
+
+    this.fire.onIgnite = () => {
+      this.ui.toast("A wildfire has started! \u{1F525} Douse it with [Q] before it spreads.", 2600);
+      this.audio.alert();
+    };
+    this.fire.onExtinguish = () => this.achievements.noteFireExtinguished();
+    this.fire.onBurnedOut = () => this.ui.toast("A tree burned down... \u{1F525}", 2000);
+
+    this.environment.onWeatherChange = (state) => {
+      this.ui.toast(WEATHER_TOASTS[state] ?? "The weather shifts.", 3000);
+      this.audio.setRain(state === "rain");
+    };
+    this.environment.onSeasonChange = (season) => {
+      this.ui.toast(`${season.icon} ${season.name} arrives.`, 2600);
+    };
+
+    this.achievements.onUnlock = (def) => {
+      this.ui.toast(`\u{1F3C6} Achievement unlocked: ${def.name} - ${def.desc}`, 4200);
+      this.audio.fanfare();
     };
 
     this.player.onManualToggle = () => {
@@ -78,6 +134,11 @@ class Game {
       location.reload();
     });
     this.ui.onLevelSelect(() => location.reload());
+    this.ui.onDefeatRetry(() => {
+      setPendingLevel(this.levelIndex);
+      location.reload();
+    });
+    this.ui.onDefeatLevelSelect(() => location.reload());
     this.ui.onManualOpen(() => this._openManual());
     this.ui.onManualClose(() => this._closeManual());
 
@@ -85,7 +146,7 @@ class Game {
     // resume" text - clicking the canvas itself re-requests pointer lock,
     // which the start-screen overlay naturally blocks until dismissed.
     this.renderer.domElement.addEventListener("click", () => {
-      if (!this.player.locked && !this.ui.manualOpen && !this.ui.wonAlready) this._resume();
+      if (!this.player.locked && !this.ui.manualOpen && !this.ui.wonAlready && !this.ui.lostAlready) this._resume();
     });
 
     window.addEventListener("resize", () => this._onResize());
@@ -192,8 +253,12 @@ class Game {
     this.trees = new TreeManager(this.scene, this.terrain);
     this.animals = new AnimalManager(this.scene, this.terrain, this.trees);
     this.loggers = new LoggerManager(this.scene, this.terrain, this.trees, this.level);
-    this.chat = new ChatBubbleManager(this.loggers);
-    this.projectiles = new ProjectileManager(this.scene, this.terrain, this.loggers);
+    this.poachers = new PoacherManager(this.scene, this.terrain, this.animals, this.level);
+    this.chat = new ChatBubbleManager(this.loggers.loggers);
+    this.poacherChat = new ChatBubbleManager(this.poachers.poachers);
+    this.projectiles = new ProjectileManager(this.scene, this.terrain, [this.loggers, this.poachers]);
+    this.fire = new FireManager(this.scene, this.terrain, this.trees);
+    this.minimap = new Minimap(this.terrain);
   }
 
   _initSandParticles() {
@@ -256,6 +321,33 @@ class Game {
     this.day = Math.floor(this.elapsed / DAY_LENGTH) + 1;
   }
 
+  _updateFireAudio(dt) {
+    this._crackleAccum += dt;
+    if (this.fire.count() > 0 && this._crackleAccum > 1.1) {
+      this._crackleAccum = 0;
+      this.audio.crackle();
+    }
+  }
+
+  _updateMinimap(dt) {
+    const threats = [];
+    for (const lg of this.loggers.loggers) {
+      if (lg.active) threats.push({ x: lg.mesh.position.x, z: lg.mesh.position.z, color: "#ff5555" });
+    }
+    for (const p of this.poachers.poachers) {
+      if (p.active) threats.push({ x: p.mesh.position.x, z: p.mesh.position.z, color: "#ffaa33" });
+    }
+    for (const f of this.fire.activeCells()) {
+      const { x, z } = this.terrain.worldPos(f.col, f.row);
+      threats.push({ x, z, color: "#ffcc33" });
+    }
+
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+    const yaw = Math.atan2(dir.x, -dir.z);
+    this.minimap.update(dt, this.camera.position, yaw, threats);
+  }
+
   _resume() {
     this.player.lock();
     this.audio.start();
@@ -272,7 +364,7 @@ class Game {
     // dismissed) - opening the manual out of curiosity from the start
     // screen shouldn't silently launch the game on close.
     const alreadyStarted = this.ui.el.start.classList.contains("hidden");
-    if (!this.ui.wonAlready && alreadyStarted) this._resume();
+    if (!this.ui.wonAlready && !this.ui.lostAlready && alreadyStarted) this._resume();
   }
 
   _onResize() {
@@ -289,17 +381,35 @@ class Game {
     this._updateDayNight();
     this._updateSandParticles(dt);
 
-    this.terrain.update(dt, this.trees);
+    if (this.level.endless && this.day !== this._lastEscalateDay) {
+      this._lastEscalateDay = this.day;
+      this.terrain.escalate(this.level.escalateFactor ?? 1.05);
+    }
+
+    this.environment.update(dt, this.day);
+    const envMul = this.environment.getMultipliers();
+    this.player.envWaterMultiplier = envMul.waterRegen;
+
+    this.terrain.update(dt, this.trees, envMul);
     this.trees.update(dt);
     this.animals.update(dt, this.loggers, this.camera.position);
     this.loggers.update(dt);
     this.loggers.faceBillboards(this.camera.quaternion);
+    this.poachers.update(dt);
+    this.poachers.faceBillboards(this.camera.quaternion);
+    this.fire.update(dt, envMul.fireChance);
     this.chat.update(this.camera, this.renderer);
+    this.poacherChat.update(this.camera, this.renderer);
     this.projectiles.update(dt);
     this.player.update(dt);
+    this._updateFireAudio(dt);
+    this._updateMinimap(dt);
 
     const forestPct = this.terrain.forestCoverPct();
     const biodiversity = this.animals.biodiversityIndex();
+
+    if (this.player.seeds >= this.player.maxSeeds) this.achievements.noteMaxSeeds();
+    if (forestPct >= 50 && biodiversity >= 50) this.achievements.notePerfectBalance();
 
     this.ui.update({
       forestPct,
@@ -309,16 +419,32 @@ class Game {
       maxSeeds: this.player.maxSeeds,
       water: this.player.water,
       maxWater: this.player.maxWater,
+      plantType: this.player.plantType,
+      weatherLabel: this.environment.weatherLabel(),
+      seasonLabel: this.environment.seasonLabel(),
     });
     this.ui.updatePrompt(this.player.target);
 
-    if (forestPct >= this.level.winForestPct && biodiversity >= this.level.winBiodiversityPct) {
-      if (!this.ui.wonAlready) unlockLevel(this.levelIndex + 1);
+    if (this.level.endless) {
+      if (!this.ui.lostAlready && this.terrain.desertPct() >= (this.level.collapseDesertPct ?? 85)) {
+        const isNewBest = recordEndlessDays(this.day);
+        this.achievements.noteEndlessDays(getBestEndlessDays());
+        this.ui.showDefeat({ day: this.day, bestDays: getBestEndlessDays(), isNewBest });
+      }
+    } else if (forestPct >= this.level.winForestPct && biodiversity >= this.level.winBiodiversityPct) {
+      let isNewBest = false;
+      if (!this.ui.wonAlready) {
+        unlockLevel(this.levelIndex + 1);
+        this.achievements.noteLevelCleared(this.levelIndex + 1);
+        isNewBest = recordResult(this.levelIndex, this.day);
+      }
       this.ui.showVictory({ forestPct, biodiversity, day: this.day }, {
         levelIndex: this.levelIndex,
         levelName: this.level.name,
         hasNext: this.levelIndex + 1 < LEVELS.length,
         nextName: LEVELS[this.levelIndex + 1]?.name,
+        bestDay: getBestResult(this.levelIndex),
+        isNewBest,
       });
     }
 
@@ -345,6 +471,15 @@ function initLevelSelect() {
 
   const unlocked = getUnlockedLevel();
 
+  function bestLineFor(lvl, index) {
+    if (lvl.endless) {
+      const best = getBestEndlessDays();
+      return best > 0 ? `<span class="level-card-best">Best: ${best} day${best === 1 ? "" : "s"} survived</span>` : "";
+    }
+    const best = getBestResult(index);
+    return best !== null ? `<span class="level-card-best">Best: Day ${best}</span>` : "";
+  }
+
   function renderGrid() {
     gridEl.innerHTML = "";
     LEVELS.forEach((lvl, i) => {
@@ -357,6 +492,7 @@ function initLevelSelect() {
         <span class="level-card-num">${locked ? "🔒" : i + 1}</span>
         <span class="level-card-name">${lvl.name}</span>
         <span class="level-card-tagline">${locked ? "Complete the previous level to unlock" : lvl.tagline}</span>
+        ${locked ? "" : bestLineFor(lvl, i)}
       `;
       if (!locked) card.addEventListener("click", () => showConfirm(i));
       gridEl.appendChild(card);

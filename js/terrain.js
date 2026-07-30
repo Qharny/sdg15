@@ -1,10 +1,15 @@
 import * as THREE from "three";
 import { clamp, healthToColor, heightAt, randRange } from "./utils.js";
+import { generateWorldFeatures, CellType } from "./worldgen.js";
 
 const DESERT_THRESHOLD = 0.14;
 const PLANTABLE_THRESHOLD = 0.16;
 const MATURE_THRESHOLD = 0.72;
 const GRASS_THRESHOLD = 0.5;
+// Shrubs are fast, cheap ground cover - they hold land above desert/grass
+// thresholds but are deliberately capped below MATURE_THRESHOLD so they never
+// count as real forest cover or unlock animal habitat on their own.
+const SHRUB_HEALTH_CAP = 0.6;
 
 export class Terrain {
   constructor(scene, size = 46, cellSize = 4.2, opts = {}) {
@@ -21,10 +26,16 @@ export class Terrain {
     this.desertRadiusFactor = opts.desertRadiusFactor ?? 0.22;
     this.forestRadiusFactor = opts.forestRadiusFactor ?? 0.24;
 
+    const { cellType, elevation } = generateWorldFeatures(size);
+    this.cellType = cellType;
+    this.elevation = elevation;
+
     this.health = new Float32Array(size * size);
     this._generateInitialHealth();
+    this._computeNearWater();
 
     this._buildGroundMesh();
+    this._buildWaterSurface();
     this._buildDecor();
     this._refreshAllDecor();
 
@@ -40,6 +51,11 @@ export class Terrain {
     const forestCenter = { x: size * 0.72, y: size * 0.68 };
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
+        const idx = this.index(col, row);
+        if (this.cellType[idx] !== CellType.LAND) {
+          this.health[idx] = 0.1; // not simulated - water/mountain read their own color
+          continue;
+        }
         const dDesert = Math.hypot(col - desertCenter.x, row - desertCenter.y);
         const dForest = Math.hypot(col - forestCenter.x, row - forestCenter.y);
         let h;
@@ -50,7 +66,33 @@ export class Terrain {
         } else {
           h = 0.22 + Math.random() * 0.28 - dDesert * 0.004;
         }
-        this.health[this.index(col, row)] = clamp(h, 0.02, 1);
+        this.health[idx] = clamp(h, 0.02, 1);
+      }
+    }
+  }
+
+  // Marks land cells within a couple of cells of water so the growth pass
+  // can give riverside/lakeside land a passive boost - a strategic pull
+  // toward the water without needing the player to actively irrigate it.
+  _computeNearWater() {
+    const { size } = this;
+    this._nearWater = new Uint8Array(size * size);
+    for (let row = 0; row < size; row++) {
+      for (let col = 0; col < size; col++) {
+        const idx = this.index(col, row);
+        if (this.cellType[idx] !== CellType.LAND) continue;
+        search:
+        for (let dr = -2; dr <= 2; dr++) {
+          for (let dc = -2; dc <= 2; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const nc = col + dc, nr = row + dr;
+            if (!this.inBounds(nc, nr)) continue;
+            if (this.cellType[this.index(nc, nr)] === CellType.WATER) {
+              this._nearWater[idx] = 1;
+              break search;
+            }
+          }
+        }
       }
     }
   }
@@ -58,7 +100,8 @@ export class Terrain {
   // A single continuous, smoothly-shaded mesh whose vertices align exactly
   // 1:1 with health-grid cells (vertex spacing == cellSize), so the ground
   // reads as rolling terrain with soft color gradients instead of a tiled
-  // checkerboard of flat squares.
+  // checkerboard of flat squares. Mountains/water add a per-cell elevation
+  // offset on top of the base bump function.
   _buildGroundMesh() {
     const { size, cellSize } = this;
     const span = (size - 1) * cellSize;
@@ -71,8 +114,8 @@ export class Terrain {
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
-      pos.setY(i, heightAt(x, z));
-      const [r, g, b] = healthToColor(this.health[i]);
+      pos.setY(i, heightAt(x, z) + this.elevation[i]);
+      const [r, g, b] = this.cellColor(i);
       color.setRGB(r, g, b);
       colors[i * 3] = color.r;
       colors[i * 3 + 1] = color.g;
@@ -89,6 +132,52 @@ export class Terrain {
     this._posAttr = pos;
   }
 
+  // Health-grid color for land, or a fixed water/rock color for the two
+  // non-simulated terrain types.
+  cellColor(i) {
+    const type = this.cellType[i];
+    if (type === CellType.WATER) return [0.09, 0.32, 0.52];
+    if (type === CellType.MOUNTAIN) {
+      const t = clamp(this.elevation[i] / 7.5, 0, 1);
+      const base = 0.42 + t * 0.3; // lighter/greyer near the peaks
+      return [base, base * 0.96, base * 0.92];
+    }
+    return healthToColor(this.health[i]);
+  }
+
+  // A still, semi-transparent water plane sitting above the dipped ground
+  // mesh wherever a cell is WATER - cellType never changes at runtime, so
+  // this is built once and never touched again (unlike the grass/rock decor,
+  // which reacts to health changes every frame).
+  _buildWaterSurface() {
+    const WATER_LEVEL_Y = -0.55;
+    const count = this.size * this.size;
+    const geo = new THREE.PlaneGeometry(this.cellSize * 1.08, this.cellSize * 1.08);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x1f5f8b, transparent: true, opacity: 0.82, roughness: 0.15, metalness: 0.1,
+    });
+    const mesh = new THREE.InstancedMesh(geo, mat, count);
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false; // see the note on TreeManager.trunks in trees.js
+    const dummy = new THREE.Object3D();
+    let n = 0;
+    for (let row = 0; row < this.size; row++) {
+      for (let col = 0; col < this.size; col++) {
+        if (this.cellType[this.index(col, row)] !== CellType.WATER) continue;
+        const { x, z } = this.worldPos(col, row);
+        dummy.position.set(x, WATER_LEVEL_Y, z);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(n, dummy.matrix);
+        n++;
+      }
+    }
+    mesh.count = n;
+    mesh.instanceMatrix.needsUpdate = true;
+    this.scene.add(mesh);
+    this.waterSurface = mesh;
+  }
+
   _buildDecor() {
     const count = this.size * this.size;
     const grassGeo = new THREE.IcosahedronGeometry(0.24, 0);
@@ -96,11 +185,13 @@ export class Terrain {
     this.grass = new THREE.InstancedMesh(grassGeo, grassMat, count);
     this.grass.castShadow = false;
     this.grass.receiveShadow = false;
+    this.grass.frustumCulled = false; // see the note on TreeManager.trunks in trees.js
 
     const rockGeo = new THREE.IcosahedronGeometry(0.3, 0);
     const rockMat = new THREE.MeshLambertMaterial({ color: 0x8a8478 });
     this.rocks = new THREE.InstancedMesh(rockGeo, rockMat, count);
     this.rocks.castShadow = true;
+    this.rocks.frustumCulled = false;
 
     this._decorDummy = new THREE.Object3D();
     this._decorSeed = new Float32Array(count);
@@ -113,20 +204,28 @@ export class Terrain {
     const col = idx % this.size;
     const row = (idx / this.size) | 0;
     const { x, z } = this.worldPos(col, row);
-    const y = heightAt(x, z);
+    const y = heightAt(x, z) + this.elevation[idx];
+    const type = this.cellType[idx];
     const h = this.health[idx];
     const seed = this._decorSeed[idx];
     const jitterX = (seed - 0.5) * this.cellSize * 0.7;
     const jitterZ = ((seed * 7.13) % 1 - 0.5) * this.cellSize * 0.7;
 
-    const grassScale = h >= GRASS_THRESHOLD ? clamp((h - GRASS_THRESHOLD) / (1 - GRASS_THRESHOLD), 0, 1) * (0.6 + seed * 0.7) : 0;
+    // No grass on water or bare rock, obviously.
+    const grassScale = type === CellType.LAND && h >= GRASS_THRESHOLD
+      ? clamp((h - GRASS_THRESHOLD) / (1 - GRASS_THRESHOLD), 0, 1) * (0.6 + seed * 0.7)
+      : 0;
     this._decorDummy.position.set(x + jitterX, y, z + jitterZ);
     this._decorDummy.rotation.y = seed * 6.283;
     this._decorDummy.scale.setScalar(grassScale);
     this._decorDummy.updateMatrix();
     this.grass.setMatrixAt(idx, this._decorDummy.matrix);
 
-    const rockScale = h < DESERT_THRESHOLD ? (0.4 + seed * 0.9) * (seed > 0.55 ? 1 : 0) : 0;
+    // Rocks scatter on desert cells and much more densely on mountains -
+    // water gets none.
+    let rockScale = 0;
+    if (type === CellType.MOUNTAIN) rockScale = 0.5 + seed * 0.9;
+    else if (type === CellType.LAND && h < DESERT_THRESHOLD) rockScale = (0.4 + seed * 0.9) * (seed > 0.55 ? 1 : 0);
     this._decorDummy.position.set(x - jitterX, y, z - jitterZ);
     this._decorDummy.rotation.set(seed * 3, seed * 5, seed * 2);
     this._decorDummy.scale.setScalar(rockScale);
@@ -161,26 +260,47 @@ export class Terrain {
     return { col, row };
   }
 
+  // Ground height including mountain/water elevation - every entity
+  // (player, trees, animals, loggers, poachers, projectiles, fire) should
+  // read this instead of the bare heightAt() bump function so nothing floats
+  // over a lake or sinks into a mountainside.
+  groundHeight(x, z) {
+    const { col, row } = this.cellAt(x, z);
+    const elev = this.inBounds(col, row) ? this.elevation[this.index(col, row)] : 0;
+    return heightAt(x, z) + elev;
+  }
+
   getHealth(col, row) {
     if (!this.inBounds(col, row)) return 0;
     return this.health[this.index(col, row)];
   }
 
+  // Mountains and water are permanent obstacles - not part of the
+  // plantable/degradable simulation, and blocked for player movement.
+  isBlocked(col, row) {
+    if (!this.inBounds(col, row)) return true;
+    return this.cellType[this.index(col, row)] !== CellType.LAND;
+  }
+
   isDesert(col, row) {
+    if (!this.inBounds(col, row) || this.cellType[this.index(col, row)] !== CellType.LAND) return false;
     return this.getHealth(col, row) < DESERT_THRESHOLD;
   }
 
   isPlantable(col, row) {
+    if (!this.inBounds(col, row) || this.cellType[this.index(col, row)] !== CellType.LAND) return false;
     return this.getHealth(col, row) >= PLANTABLE_THRESHOLD;
   }
 
   isMature(col, row) {
+    if (!this.inBounds(col, row) || this.cellType[this.index(col, row)] !== CellType.LAND) return false;
     return this.getHealth(col, row) >= MATURE_THRESHOLD;
   }
 
   adjustHealth(col, row, delta) {
     if (!this.inBounds(col, row)) return;
     const idx = this.index(col, row);
+    if (this.cellType[idx] !== CellType.LAND) return;
     this.health[idx] = clamp(this.health[idx] + delta, 0.01, 1);
     this._dirty.add(idx);
   }
@@ -194,23 +314,37 @@ export class Terrain {
     }
   }
 
+  // Used by Endless mode to make the valley progressively harder to hold
+  // the longer the player survives.
+  escalate(factor = 1.08) {
+    this.decayRate *= factor;
+    this.desertSpreadAmount *= factor;
+  }
+
+  // Percentages are computed over LAND cells only - mountains and water are
+  // permanent, un-restorable terrain and shouldn't quietly make win/collapse
+  // conditions harder or easier than intended.
   forestCoverPct() {
-    let mature = 0;
+    let mature = 0, land = 0;
     for (let i = 0; i < this.health.length; i++) {
+      if (this.cellType[i] !== CellType.LAND) continue;
+      land++;
       if (this.health[i] >= MATURE_THRESHOLD) mature++;
     }
-    return (mature / this.health.length) * 100;
+    return land ? (mature / land) * 100 : 0;
   }
 
   desertPct() {
-    let desert = 0;
+    let desert = 0, land = 0;
     for (let i = 0; i < this.health.length; i++) {
+      if (this.cellType[i] !== CellType.LAND) continue;
+      land++;
       if (this.health[i] < DESERT_THRESHOLD) desert++;
     }
-    return (desert / this.health.length) * 100;
+    return land ? (desert / land) * 100 : 0;
   }
 
-  update(dt, treeManager) {
+  update(dt, treeManager, envMultipliers = { growth: 1, decay: 1, desertSpread: 1 }) {
     this._tickAccum += dt;
     const { size } = this;
 
@@ -218,12 +352,20 @@ export class Terrain {
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
         const idx = this.index(col, row);
+        if (this.cellType[idx] !== CellType.LAND) continue;
         const hasTree = treeManager.hasTreeAt(col, row);
+        const nearWaterMul = this._nearWater[idx] ? 1.25 : 1;
         let h = this.health[idx];
         if (hasTree) {
-          h += this.growthRate * dt;
+          const isShrub = treeManager.getTypeAt(col, row) === "shrub";
+          if (!isShrub) {
+            h += this.growthRate * envMultipliers.growth * nearWaterMul * dt;
+          } else if (h < SHRUB_HEALTH_CAP) {
+            // Grows faster than a tree but stalls out at the cap.
+            h += this.growthRate * 1.5 * envMultipliers.growth * nearWaterMul * dt;
+          }
         } else {
-          h -= this.decayRate * dt;
+          h -= this.decayRate * envMultipliers.decay * (this._nearWater[idx] ? 0.7 : 1) * dt;
         }
         h = clamp(h, 0.01, 1);
         if (Math.abs(h - this.health[idx]) > 0.0001) {
@@ -246,7 +388,7 @@ export class Terrain {
           const dr = ((Math.random() * 3) | 0) - 1;
           const nc = col + dc, nr = row + dr;
           if (this.inBounds(nc, nr) && !treeManager.hasTreeAt(nc, nr)) {
-            this.adjustHealth(nc, nr, -this.desertSpreadAmount);
+            this.adjustHealth(nc, nr, -this.desertSpreadAmount * envMultipliers.desertSpread);
           }
         }
       }
@@ -254,7 +396,7 @@ export class Terrain {
 
     if (this._dirty.size) {
       for (const idx of this._dirty) {
-        const [r, g, b] = healthToColor(this.health[idx]);
+        const [r, g, b] = this.cellColor(idx);
         this._colorAttr.setXYZ(idx, r, g, b);
         this._updateDecorAt(idx);
       }

@@ -22,6 +22,10 @@
   <div id="prompt" class="hidden"></div>
   <div id="toasts"></div>
 
+  <div id="minimap-wrap" class="hidden">
+    <canvas id="minimap"></canvas>
+  </div>
+
   <div id="hud" class="hidden">
     <div class="panel">
       <div class="stat-row">
@@ -50,6 +54,10 @@
         <span>Planted <strong id="stat-planted">0</strong></span>
         <span>Loggers stopped <strong id="stat-confronted">0</strong></span>
       </div>
+      <div class="mini-stats">
+        <span>Planting <strong id="stat-planttype">Tree 🌳</strong></span>
+        <span id="stat-weather">☀️ Clear</span>
+      </div>
       <div class="manual-hint" id="hud-level">Press <kbd>H</kbd> for the manual</div>
     </div>
   </div>
@@ -61,16 +69,18 @@
 
       <div id="level-intro">
         <p class="desc">
-          A desert is swallowing the valley and loggers are cutting the last stands of forest.
-          Plant trees, irrigate dying land, and defend your forest to restore the ecosystem
-          before degradation wins. Choose a level to begin.
+          A desert is swallowing the valley. Loggers cut the last stands of forest, poachers hunt
+          the wildlife, and wildfires can flare up in a drought. Plant trees and shrubs, irrigate
+          dying land, and defend what's yours to restore the ecosystem before degradation wins.
+          Choose a level to begin.
         </p>
         <div class="controls-grid">
           <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</div>
           <div><kbd>Mouse</kbd> Look</div>
-          <div><kbd>E</kbd> Plant sapling</div>
-          <div><kbd>Q</kbd> Irrigate land</div>
-          <div><kbd>Click</kbd> / <kbd>F</kbd> Shoot loggers</div>
+          <div><kbd>E</kbd> Plant</div>
+          <div><kbd>Tab</kbd> Switch tree/shrub</div>
+          <div><kbd>Q</kbd> Irrigate / douse fire</div>
+          <div><kbd>Click</kbd> / <kbd>F</kbd> Shoot loggers &amp; poachers</div>
           <div><kbd>Esc</kbd> Pause</div>
           <div><kbd>H</kbd> How to play</div>
         </div>
@@ -123,8 +133,9 @@
           <table class="manual-table">
             <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Move</td></tr>
             <tr><td><kbd>Mouse</kbd></td><td>Look around</td></tr>
-            <tr><td><kbd>E</kbd></td><td>Plant a sapling on the highlighted cell</td></tr>
-            <tr><td><kbd>Q</kbd></td><td>Irrigate the ground in front of you</td></tr>
+            <tr><td><kbd>E</kbd></td><td>Plant on the highlighted cell (tree or shrub)</td></tr>
+            <tr><td><kbd>Tab</kbd></td><td>Switch between planting a tree and a shrub</td></tr>
+            <tr><td><kbd>Q</kbd></td><td>Irrigate ground in front of you, or douse a fire</td></tr>
             <tr><td><kbd>Click</kbd> / <kbd>F</kbd></td><td>Fire a seed-pod from your slingshot</td></tr>
             <tr><td><kbd>H</kbd></td><td>Open or close this manual</td></tr>
             <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
@@ -148,27 +159,87 @@
         </section>
 
         <section>
+          <h3>🌿 Trees vs. shrubs</h3>
+          <p>Press <kbd>Tab</kbd> to switch what <kbd>E</kbd> plants. <strong>Trees</strong> grow slowly but become
+          real forest cover — they count toward your forest-cover target and unlock animal habitat. <strong>Shrubs</strong>
+          grow fast and cheaply and hold land above desert level, but they cap out below "mature forest" and never
+          count toward your win condition or attract wildlife on their own. Use shrubs to firewall the desert edge
+          quickly, and trees to build the forest you actually need to win.</p>
+        </section>
+
+        <section>
           <h3>🪓 Loggers</h3>
           <p>Loggers walk in from the map edge toward your healthiest trees and start chopping, shown by a health
           bar over their head. Aim your crosshair at one — while they're on their way in or already chopping — and
           <kbd>Click</kbd> or press <kbd>F</kbd> to fire a seed-pod from your slingshot. A solid hit scares them off
           instantly; no need to get close. Let the chop bar fill and the tree — and a chunk of that cell's health —
-          is lost.</p>
+          is lost. Shrubs aren't worth their time, so they only ever target real trees.</p>
+        </section>
+
+        <section>
+          <h3>🕸️ Poachers</h3>
+          <p>Once you have wildlife, poachers can show up too — they chase down a live animal and try to net it,
+          shown by the same kind of progress bar. Your slingshot works on them exactly like it does on loggers:
+          aim and fire to scare them off before the net closes. Losing an animal to a poacher hurts your
+          biodiversity stat directly.</p>
+        </section>
+
+        <section>
+          <h3>🔥 Wildfires</h3>
+          <p>Dry, mature trees can catch fire on their own, and much more often during a drought. A burning cell
+          damages its own health, can kill the tree outright, and may spread to flammable neighbors. Aim your
+          irrigation at a burning cell and press <kbd>Q</kbd> to douse it — the same canteen that waters land puts
+          out fires.</p>
+        </section>
+
+        <section>
+          <h3>🌦️ Weather &amp; seasons</h3>
+          <p>Short-term weather (clear, rain, or drought) and the long-term season both shift growth, decay,
+          desertification speed, and fire risk — shown together in your HUD. Rain speeds up growth and refills your
+          canteen faster with zero fire risk; drought does the opposite and makes wildfires much more likely.
+          Spring and summer favor growth, autumn is neutral to mildly harsh, and winter slows everything — good and
+          bad — right down.</p>
+        </section>
+
+        <section>
+          <h3>⛰️ Mountains, lakes &amp; rivers</h3>
+          <p>The valley isn't just a health grid — a mountain range, a lake, and the rivers connecting them are
+          permanent features of the map. Mountains and water block movement (you can't plant on them either), and
+          land near a river or lakeshore heals faster and decays slower than land out in the open, so riverbank
+          plots are some of the best ground you'll find.</p>
+        </section>
+
+        <section>
+          <h3>🗺️ Minimap</h3>
+          <p>The panel in the top-right corner mirrors the terrain from above — including the blue lakes/rivers
+          and grey mountains — with your position and facing as a white arrow. Red dots are active loggers, orange
+          dots are poachers, and yellow dots are current wildfires — a quick glance tells you where to run.</p>
         </section>
 
         <section>
           <h3>🦌 Wildlife &amp; biodiversity</h3>
           <p>Animals only move in once there's enough mature forest to support them, and they wander near their
-          home grove. If the land around them degrades or a logger gets too close, they flee and eventually
-          disappear. The biodiversity stat is a direct read of how much wildlife is currently thriving.</p>
+          home grove. If the land around them degrades, a logger gets too close, or a poacher catches one, they
+          flee (or are lost) and the biodiversity stat drops. It's a direct read of how much wildlife is currently
+          thriving.</p>
         </section>
 
         <section>
-          <h3>🏆 Winning</h3>
+          <h3>🏆 Winning &amp; achievements</h3>
           <p>Reach your level's forest cover target <em>and</em> its biodiversity target at the same time to restore
           the ecosystem. Both numbers move independently, so a healthy forest with no wildlife — or wildlife
           without enough forest to sustain it — won't be enough on its own. Clearing a level unlocks the next,
-          harder one.</p>
+          harder one, and your fastest clear (in in-game days) is remembered per level. Separately, achievements
+          track your progress across every playthrough — planting totals, threats stopped, fires put out, and
+          more — and pop up as toasts the moment you earn them.</p>
+        </section>
+
+        <section>
+          <h3>♾️ Endless mode</h3>
+          <p>Clearing every numbered level unlocks Endless Vigil: there's no forest/biodiversity target, just the
+          land getting harder to hold the longer you survive — decay and desertification both escalate every
+          in-game day. It ends when desert overtakes most of the map; your best survival time (in days) is saved
+          and shown on the level-select screen.</p>
         </section>
 
         <section>
@@ -176,13 +247,31 @@
           <ul>
             <li>Irrigate before you plant if the ground reads too degraded — it's usually faster than waiting.</li>
             <li>Cluster your planting near cells you've already restored; healthy ground helps its neighbors.</li>
-            <li>Patrol your best groves — that's exactly where loggers head.</li>
+            <li>Patrol your best groves — that's exactly where loggers (and fire) show up.</li>
             <li>Your slingshot has range — you don't have to be close, just aimed and lined up.</li>
+            <li>Use shrubs to quickly stabilize a desert front, then come back and replace them with real trees.</li>
+            <li>Rain is a good time to plant aggressively; drought is a good time to patrol for fires instead.</li>
           </ul>
         </section>
       </div>
 
       <button id="btn-manual-close">Got it — back to the valley</button>
+    </div>
+  </div>
+
+  <div id="defeat-screen" class="overlay hidden">
+    <div class="card">
+      <h1>🏜️ Ecosystem Collapsed</h1>
+      <p class="subtitle">The desert claimed the valley — but you held the line for a while.</p>
+      <div id="defeat-stats" class="final-stats"></div>
+      <p class="desc">
+        Endless mode never really ends well — the land keeps getting harsher the longer you survive.
+        That's the point: land restoration is a fight you keep fighting, not one you win once.
+      </p>
+      <div class="button-row">
+        <button id="btn-defeat-retry">🔁 Try Again</button>
+        <button id="btn-defeat-level-select" class="btn-secondary">🗺️ Level Select</button>
+      </div>
     </div>
   </div>
 

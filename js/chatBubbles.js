@@ -7,14 +7,17 @@ const HEAD_OFFSET_Y = 2.35;
 // far simpler than building canvas-texture sprites for arbitrary text, and
 // it gets crisp text/CSS styling for free.
 export class ChatBubbleManager {
-  constructor(loggerManager) {
-    this.loggerManager = loggerManager;
+  // `units` is a plain array of {active, chatText, mesh} objects - both
+  // LoggerManager.loggers and PoacherManager.poachers already match this
+  // shape, so one class handles speech bubbles for either threat type.
+  constructor(units) {
+    this.units = units;
 
     this.container = document.createElement("div");
     this.container.id = "logger-chat-layer";
     document.body.appendChild(this.container);
 
-    this.bubbles = loggerManager.loggers.map(() => {
+    this.bubbles = units.map(() => {
       const el = document.createElement("div");
       el.className = "chat-bubble";
       this.container.appendChild(el);
@@ -25,12 +28,12 @@ export class ChatBubbleManager {
   }
 
   update(camera, renderer) {
-    const loggers = this.loggerManager.loggers;
+    const units = this.units;
     const w = renderer.domElement.clientWidth;
     const h = renderer.domElement.clientHeight;
 
-    for (let i = 0; i < loggers.length; i++) {
-      const lg = loggers[i];
+    for (let i = 0; i < units.length; i++) {
+      const lg = units[i];
       const el = this.bubbles[i];
       if (!lg.active || !lg.chatText) {
         el.classList.remove("visible");

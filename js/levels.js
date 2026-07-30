@@ -26,6 +26,8 @@ export const LEVELS = [
     maxWater: 100,
     waterRegenRate: 8,
     waterDrainPerUse: 14,
+    poacherCount: 1,
+    captureTime: 9,
   },
   {
     id: "grove",
@@ -49,6 +51,8 @@ export const LEVELS = [
     maxWater: 100,
     waterRegenRate: 6.5,
     waterDrainPerUse: 16,
+    poacherCount: 2,
+    captureTime: 7.5,
   },
   {
     id: "restorer",
@@ -72,6 +76,36 @@ export const LEVELS = [
     maxWater: 100,
     waterRegenRate: 5.5,
     waterDrainPerUse: 18,
+    poacherCount: 2,
+    captureTime: 6,
+  },
+  {
+    id: "endless",
+    name: "Endless Vigil",
+    tagline: "Endless — hold the line as long as you can",
+    goalText: "There's no finish line. Survive as many days as you can as the valley grows harsher.",
+    endless: true,
+    collapseDesertPct: 85,
+    escalateFactor: 1.05,
+    winForestPct: 999,
+    winBiodiversityPct: 999,
+    loggerCount: 3,
+    chopTime: 7,
+    decayRate: 0.005,
+    growthRate: 0.014,
+    desertSpreadInterval: 0.5,
+    desertSpreadSampleRate: 0.016,
+    desertSpreadAmount: 0.022,
+    desertRadiusFactor: 0.2,
+    forestRadiusFactor: 0.27,
+    startSeeds: 18,
+    maxSeeds: 36,
+    seedRegenTime: 7,
+    maxWater: 100,
+    waterRegenRate: 7,
+    waterDrainPerUse: 15,
+    poacherCount: 2,
+    captureTime: 7,
   },
 ];
 
@@ -101,4 +135,40 @@ export function consumePendingLevel() {
 
 export function setPendingLevel(index) {
   sessionStorage.setItem(PENDING_KEY, String(index));
+}
+
+const BEST_KEY_PREFIX = "sdg15_best_";
+const ENDLESS_BEST_KEY = "sdg15_endless_best_days";
+
+// Best result for a standard (non-endless) level is the fewest in-game days
+// taken to win it - lower is better, so a first clear always "sets" a best.
+export function getBestResult(levelIndex) {
+  const raw = localStorage.getItem(BEST_KEY_PREFIX + levelIndex);
+  if (raw === null) return null;
+  const day = parseInt(raw, 10);
+  return Number.isFinite(day) ? day : null;
+}
+
+export function recordResult(levelIndex, day) {
+  const prev = getBestResult(levelIndex);
+  if (prev === null || day < prev) {
+    localStorage.setItem(BEST_KEY_PREFIX + levelIndex, String(day));
+    return true; // new best
+  }
+  return false;
+}
+
+export function getBestEndlessDays() {
+  const raw = localStorage.getItem(ENDLESS_BEST_KEY);
+  const v = parseInt(raw ?? "0", 10);
+  return Number.isFinite(v) ? v : 0;
+}
+
+export function recordEndlessDays(days) {
+  const prev = getBestEndlessDays();
+  if (days > prev) {
+    localStorage.setItem(ENDLESS_BEST_KEY, String(days));
+    return true;
+  }
+  return false;
 }

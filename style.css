@@ -153,6 +153,26 @@ html, body {
 }
 .manual-hint kbd { font-size: 10.5px; padding: 1px 6px; }
 
+/* Minimap */
+#minimap-wrap {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 15;
+  padding: 6px;
+  background: rgba(14, 26, 18, 0.72);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+}
+#minimap {
+  display: block;
+  width: 132px;
+  height: 132px;
+  border-radius: 8px;
+}
+
 /* Logger speech bubbles */
 #logger-chat-layer {
   position: fixed;
@@ -284,7 +304,7 @@ button:active { transform: translateY(0); }
 .level-select-card { max-width: 640px; }
 .level-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin: 20px 0;
 }
@@ -316,6 +336,12 @@ button:active { transform: translateY(0); }
 .level-card:disabled .level-card-num { color: #d9c98a; }
 .level-card-name { font-size: 14px; font-weight: 700; }
 .level-card-tagline { font-size: 11.5px; opacity: 0.8; line-height: 1.4; }
+.level-card-best {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a7e08a;
+  margin-top: 2px;
+}
 
 #level-confirm h2 { margin-bottom: 4px; }
 #level-confirm .goal { margin-top: 4px; }

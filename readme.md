@@ -2,7 +2,7 @@
 
 **A 3D browser game about SDG 15 — Life on Land.**
 
-A valley is dying. Desertification is creeping in from the west, loggers are stripping the last stands of forest, and the wildlife is disappearing with them. You're the ranger on the ground — plant, irrigate, and defend your way to a restored ecosystem before degradation wins.
+A valley is dying. Desertification is creeping in from the west, loggers are stripping the last stands of forest, poachers are after what wildlife remains, and wildfires can flare up in a drought. You're the ranger on the ground — plant, irrigate, and defend your way to a restored ecosystem before degradation wins.
 
 Built with nothing but plain HTML, CSS, and JavaScript ES modules, rendered with [three.js](https://threejs.org/). No build step, no bundler, no game engine license — open `index.html` behind a static server and you're in the valley.
 
@@ -16,15 +16,16 @@ Built with nothing but plain HTML, CSS, and JavaScript ES modules, rendered with
 |---|---|
 | Move | `W` `A` `S` `D` |
 | Look around | Mouse (click to lock pointer) |
-| Plant a sapling | `E` |
-| Irrigate the land | `Q` |
-| Confront a logger | `F` |
+| Plant a tree or shrub | `E` |
+| Switch tree / shrub | `Tab` |
+| Irrigate land / douse a fire | `Q` |
+| Shoot loggers &amp; poachers | Click or `F` |
 | Open the field manual | `H` |
 | Pause | `Esc` |
 
 Never played? Press `H` anytime (or the "How to Play" button on the start/pause screens) for the in-game field manual — it covers the objective, mechanics, and a few tips without leaving the browser.
 
-**Win condition:** push forest cover and the biodiversity index to **55%** each, and the ecosystem is officially restored.
+**Win condition:** push forest cover and the biodiversity index to your level's targets (up to **55%** each on Hard), and the ecosystem is officially restored. Clearing all three story levels unlocks **Endless Vigil** — no win condition, just an increasingly hostile valley and a best-survival-days record.
 
 ## 🌱 How the world actually works
 
@@ -37,6 +38,11 @@ Nothing here is scripted set-dressing — it's a live simulation running on a he
 - **Animals only spawn once there's a mature forest to support them**, wander near their home grove, and flee (then despawn) if the land around them degrades or a logger gets too close. The biodiversity index is a direct read of how many are alive.
 - **Ground decor reacts to restoration in real time** — grass tufts fade in as land recovers past the grass threshold, sparse rocks appear as it crosses into desert. You can watch the valley visually heal or decay, cell by cell.
 - **Seeds and water are limited, regenerating resources** (a nursery restocks seeds slowly; a canteen refills over time), so restoration is paced — you can't just carpet the map instantly.
+- **Two things to plant, one real currency**: trees grow slowly into true forest cover and animal habitat; shrubs (`Tab` to switch) are a cheap, fast-growing stopgap that holds land above desert level but deliberately caps out below "mature forest" — useful for firewalling the desert edge while your real trees mature.
+- **Poachers hunt your wildlife** the same way loggers hunt your trees — they path toward a live animal, try to net it, and can be scared off with a well-aimed seed-pod before the net closes.
+- **Wildfires** can ignite on dry, mature trees (far more likely during a drought), burn down their host cell and its tree, and spread to flammable neighbors — put them out with the same irrigate action (`Q`) you use to water land.
+- **Weather and seasons compound**: short-term weather (clear/rain/drought) and the long-term season both scale growth, decay, desertification speed, and fire risk, shown together in the HUD.
+- **Mountains, a lake, and the rivers connecting them** are permanent terrain features, not part of the health simulation — they block planting and movement, and land near the water heals faster and decays slower than land out in the open.
 
 ## ✨ Presentation details
 
@@ -46,6 +52,9 @@ Nothing here is scripted set-dressing — it's a live simulation running on a he
 - **First-person head-bob and a subtle FOV kick** while walking, for a bit of physicality instead of a static gliding camera.
 - **Fully procedural, synthesized audio** — ambient wind, footsteps, a planting chime, and a logger alert tone are all generated at runtime with the Web Audio API. No audio files are shipped or fetched.
 - **Toasts cycle real SDG 15 facts** as in-game days pass, tying the mechanics back to the actual goal.
+- **A live minimap** in the HUD corner mirrors the health grid from above, with your position/facing and red/orange/yellow blips for loggers, poachers, and active fires.
+- **Cross-playthrough achievements** (cumulative planting, threats stopped, fires doused, levels cleared, Endless survival, and more) unlock as toasts — no separate screen to check.
+- **Best-time persistence**: your fastest clear (in in-game days) per level, and your longest Endless survival, are remembered locally and shown on the level-select screen.
 
 ## 🗂️ Project structure
 
@@ -53,14 +62,23 @@ Nothing here is scripted set-dressing — it's a live simulation running on a he
 index.html          Markup, HUD layout, start/pause/victory overlays, import map
 style.css            All visual styling (HUD, overlays, toasts)
 js/
-  utils.js           Shared math + the ground-height function every system agrees on
-  terrain.js         Health grid, smooth terrain mesh, desertification spread, grass/rock decor
-  trees.js           Tree planting, growth, organic canopy geometry, wind sway
+  utils.js           Shared math + the base ground-bump function every system agrees on
+  worldgen.js        One-time generation of mountains, the lake, and the rivers connecting them
+  terrain.js         Health grid, smooth terrain mesh, desertification spread, grass/rock/water decor
+  trees.js           Tree/shrub planting, growth, organic canopy geometry, wind sway
   animals.js         Wildlife spawn/wander/flee logic and the biodiversity index
-  loggers.js         Logger AI: seek → chop → retreat state machine, confront mechanic
+  loggers.js         Logger AI: seek → chop → retreat state machine
+  poachers.js        Poacher AI: seek → capture → retreat, targeting live animals instead of trees
+  fire.js            Wildfire ignition/spread/burnout, extinguished via the irrigate action
+  environment.js     Short-term weather + long-term seasons, combined into growth/decay multipliers
+  achievements.js    Cumulative, cross-playthrough achievement tracking (localStorage)
+  minimap.js         Canvas-based top-down health-grid minimap with threat blips
+  levels.js          Difficulty tuning per level, unlock/pending state, best-result persistence
+  chatBubbles.js     DOM speech bubbles for logger/poacher ambient chatter
+  projectiles.js     Seed-pod slingshot physics and hit detection against loggers/poachers
   player.js          Pointer-lock controls, movement, head-bob, resources, interactions
-  audio.js           Web Audio synthesis (wind, footsteps, chime, alert) — no asset files
-  ui.js              HUD updates, toasts, SDG 15 facts, start/pause/victory screens
+  audio.js           Web Audio synthesis (wind, footsteps, chime, alert, fanfare, fire, rain) — no asset files
+  ui.js              HUD updates, toasts, SDG 15 facts, start/pause/victory/defeat screens
   main.js            Scene/renderer/lighting setup, sky dome, day/night cycle, game loop
 ```
 

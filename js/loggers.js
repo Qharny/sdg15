@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { heightAt, randRange } from "./utils.js";
+import { randRange } from "./utils.js";
 
 export const MAX_SHOOT_RANGE = 34;
 const AIM_COS_THRESHOLD = 0.985; // ~10 degree cone around the crosshair
@@ -101,7 +101,8 @@ export class LoggerManager {
     const candidates = [];
     for (const [key, slot] of this.treeManager.cellToSlot) {
       const s = this.treeManager.slots[slot];
-      if (s.growth > 0.3) candidates.push(s);
+      // Loggers only care about real timber - shrubs aren't worth chopping.
+      if (s.growth > 0.3 && s.type !== "shrub") candidates.push(s);
     }
     if (candidates.length === 0) return null;
     return candidates[(Math.random() * candidates.length) | 0];
@@ -125,6 +126,16 @@ export class LoggerManager {
     lg.chatCooldown = Infinity; // retreating/despawning - no more ambient chatter
     if (this.onConfronted) this.onConfronted();
     return true;
+  }
+
+  // Generic "huntable" interface shared with PoacherManager so
+  // ProjectileManager can treat both threat types the same way.
+  huntableUnits() {
+    return this.loggers.filter((lg) => lg.active && (lg.state === "seeking" || lg.state === "chopping"));
+  }
+
+  hit(lg) {
+    return this.hitLogger(lg);
   }
 
   // Finds the nearest active logger inside a narrow cone in front of the
@@ -154,7 +165,7 @@ export class LoggerManager {
           if (target) {
             lg.targetCell = target;
             const spawn = this._edgeSpawnPoint();
-            lg.mesh.position.set(spawn.x, heightAt(spawn.x, spawn.z), spawn.z);
+            lg.mesh.position.set(spawn.x, this.terrain.groundHeight(spawn.x, spawn.z), spawn.z);
             lg.active = true;
             lg.state = "seeking";
             lg.chopProgress = 0;
@@ -238,7 +249,7 @@ export class LoggerManager {
         }
       }
 
-      p.y = heightAt(p.x, p.z);
+      p.y = this.terrain.groundHeight(p.x, p.z);
 
       if (lg.barBg.visible) {
         lg.barBg.position.set(p.x, p.y + 2.15, p.z);

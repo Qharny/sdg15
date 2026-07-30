@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { heightAt, randRange } from "./utils.js";
+import { randRange } from "./utils.js";
 
 const MAX_TREES = 900;
 const LOBES = 3;
@@ -15,6 +15,13 @@ export class TreeManager {
     this.trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, MAX_TREES);
     this.trunks.castShadow = true;
     this.trunks.count = 0;
+    // InstancedMesh's default frustum-culling bounding sphere is computed
+    // from the base geometry at the mesh's own local origin - it has no
+    // idea instances are scattered across the whole map via per-instance
+    // matrices. Left enabled, the entire mesh gets wrongly culled (all
+    // trees vanish) whenever that origin-centered sphere falls outside the
+    // camera frustum, e.g. looking away from the map center.
+    this.trunks.frustumCulled = false;
     scene.add(this.trunks);
 
     // Canopy is built from several overlapping low-poly lobes per tree
@@ -29,6 +36,7 @@ export class TreeManager {
       const im = new THREE.InstancedMesh(foliageGeo, mat, MAX_TREES);
       im.castShadow = true;
       im.count = 0;
+      im.frustumCulled = false; // see note on this.trunks above
       scene.add(im);
       this.foliageLobes.push(im);
     }
@@ -38,7 +46,7 @@ export class TreeManager {
     this.freeSlots = [];
     for (let i = 0; i < MAX_TREES; i++) {
       this.slots.push({
-        col: -1, row: -1, growth: 0, active: false,
+        col: -1, row: -1, growth: 0, active: false, type: "tree",
         swaySeed: Math.random() * Math.PI * 2,
         swaySpeed: randRange(0.5, 0.9),
         tilt: randRange(-0.05, 0.05),
@@ -66,7 +74,7 @@ export class TreeManager {
     return this.cellToSlot.has(this.key(col, row));
   }
 
-  plant(col, row) {
+  plant(col, row, type = "tree") {
     const k = this.key(col, row);
     if (this.cellToSlot.has(k)) return false;
     if (this.freeSlots.length === 0) return false;
@@ -76,6 +84,7 @@ export class TreeManager {
     s.row = row;
     s.growth = 0.08;
     s.active = true;
+    s.type = type;
     this.cellToSlot.set(k, slot);
     this.activeSlots.add(slot);
     this.trunks.count = Math.max(this.trunks.count, slot + 1);
@@ -110,9 +119,14 @@ export class TreeManager {
     return this.slots[slot].growth >= 1;
   }
 
+  // Shrubs are cheap, fast ground cover - they never become real forest, so
+  // they're excluded from the "mature tree" count that gates animal spawns.
   matureCount() {
     let n = 0;
-    for (const slot of this.activeSlots) if (this.slots[slot].growth >= 1) n++;
+    for (const slot of this.activeSlots) {
+      const s = this.slots[slot];
+      if (s.growth >= 1 && s.type !== "shrub") n++;
+    }
     return n;
   }
 
@@ -120,17 +134,29 @@ export class TreeManager {
     return this.cellToSlot.size;
   }
 
+  getTypeAt(col, row) {
+    const slot = this.cellToSlot.get(this.key(col, row));
+    return slot === undefined ? null : this.slots[slot].type;
+  }
+
   _applyMatrix(slot) {
     const s = this.slots[slot];
     const { x, z } = this.terrain.worldPos(s.col, s.row);
-    const y = heightAt(x, z);
+    const y = this.terrain.groundHeight(x, z);
     const growth = s.growth;
     const sway = Math.sin(this._time * s.swaySpeed + s.swaySeed) * 0.05 * growth;
     const baseRotY = (s.col * 928371 + s.row * 12331) % 6.283;
 
+    // Shrubs render as squat, trunk-less bushes so they read as ground
+    // cover rather than a young tree - purely a scale trick, no extra geometry.
+    const isShrub = s.type === "shrub";
+    const heightMul = isShrub ? 0.4 : 1;
+    const trunkMul = isShrub ? 0.15 : 1;
+    const lobeMul = isShrub ? 0.8 : 1;
+
     this._dummy.position.set(x, y, z);
     this._dummy.rotation.set(s.tilt, baseRotY, s.tilt + sway * 0.4);
-    this._dummy.scale.set(growth * s.trunkScaleXZ, growth * s.heightScale, growth * s.trunkScaleXZ);
+    this._dummy.scale.set(growth * s.trunkScaleXZ * trunkMul, growth * s.heightScale * heightMul, growth * s.trunkScaleXZ * trunkMul);
     this._dummy.updateMatrix();
     this.trunks.setMatrixAt(slot, this._dummy.matrix);
 
@@ -138,11 +164,11 @@ export class TreeManager {
       const lobe = s.lobes[i];
       this._dummy.position.set(
         x + lobe.ox * growth,
-        y + lobe.oy * growth * s.heightScale,
+        y + lobe.oy * growth * s.heightScale * heightMul,
         z + lobe.oz * growth
       );
       this._dummy.rotation.set(0, baseRotY + i, sway);
-      const ls = growth * lobe.scale;
+      const ls = growth * lobe.scale * lobeMul;
       this._dummy.scale.set(ls, ls * 0.85, ls);
       this._dummy.updateMatrix();
       this.foliageLobes[i].setMatrixAt(slot, this._dummy.matrix);
