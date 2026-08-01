@@ -139,6 +139,17 @@ export class TreeManager {
     return slot === undefined ? null : this.slots[slot].type;
   }
 
+  // Approx height (above ground) of the top of the canopy - lets effects
+  // like fire sit in/above the foliage instead of at a fixed world height.
+  canopyTop(col, row) {
+    const slot = this.cellToSlot.get(this.key(col, row));
+    if (slot === undefined) return 1.6;
+    const s = this.slots[slot];
+    const heightMul = s.type === "shrub" ? 0.4 : 1;
+    // matches _applyMatrix's lobe oy (up to 1.7) plus lobe radius (up to ~1.05)
+    return Math.max(0.6, s.growth * s.heightScale * heightMul * 2.4);
+  }
+
   _applyMatrix(slot) {
     const s = this.slots[slot];
     const { x, z } = this.terrain.worldPos(s.col, s.row);
