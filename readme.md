@@ -8,6 +8,8 @@ Built with nothing but plain HTML, CSS, and JavaScript ES modules, rendered with
 
 ![status](https://img.shields.io/badge/status-playable-4f9d3f) ![stack](https://img.shields.io/badge/stack-three.js%20%2B%20vanilla%20JS-2c6e2f) ![sdg](https://img.shields.io/badge/SDG-15%20Life%20on%20Land-1f6b2c)
 
+![Start screen showing level select and controls](asset/start.png)
+
 ---
 
 ## 🎮 Play
@@ -19,13 +21,17 @@ Built with nothing but plain HTML, CSS, and JavaScript ES modules, rendered with
 | Plant a tree or shrub | `E` |
 | Switch tree / shrub | `Tab` |
 | Irrigate land / douse a fire | `Q` |
-| Shoot loggers &amp; poachers | Click or `F` |
+| Shoot loggers & poachers | Click or `F` |
 | Open the field manual | `H` |
 | Pause | `Esc` |
 
 Never played? Press `H` anytime (or the "How to Play" button on the start/pause screens) for the in-game field manual — it covers the objective, mechanics, and a few tips without leaving the browser.
 
 **Win condition:** push forest cover and the biodiversity index to your level's targets (up to **55%** each on Hard), and the ecosystem is officially restored. Clearing all three story levels unlocks **Endless Vigil** — no win condition, just an increasingly hostile valley and a best-survival-days record.
+
+![First-person gameplay — night scene with HUD showing forest cover, seeds, and minimap](asset/game1.png)
+
+---
 
 ## 🌱 How the world actually works
 
@@ -44,6 +50,12 @@ Nothing here is scripted set-dressing — it's a live simulation running on a he
 - **Weather and seasons compound**: short-term weather (clear/rain/drought) and the long-term season both scale growth, decay, desertification speed, and fire risk, shown together in the HUD.
 - **Mountains, a lake, and the rivers connecting them** are permanent terrain features, not part of the health simulation — they block planting and movement, and land near the water heals faster and decays slower than land out in the open.
 
+| First-person view | Top-down view |
+|:---:|:---:|
+| ![Wildfire burning at the desert edge — first-person view](asset/fire1.png) | ![Top-down view of a forested valley with health-grid terrain](asset/fire_topdown.png) |
+
+---
+
 ## ✨ Presentation details
 
 - **One continuous, smoothly-shaded terrain mesh** — vertices sit exactly on the health grid and interpolate color/lighting across each quad, so the ground reads as rolling hills rather than a tiled checkerboard.
@@ -52,9 +64,11 @@ Nothing here is scripted set-dressing — it's a live simulation running on a he
 - **First-person head-bob and a subtle FOV kick** while walking, for a bit of physicality instead of a static gliding camera.
 - **Fully procedural, synthesized audio** — ambient wind, footsteps, a planting chime, and a logger alert tone are all generated at runtime with the Web Audio API. No audio files are shipped or fetched.
 - **Toasts cycle real SDG 15 facts** as in-game days pass, tying the mechanics back to the actual goal.
-- **A live minimap** in the HUD corner mirrors the health grid from above, with your position/facing and red/orange/yellow blips for loggers, poachers, and active fires.
+- **A live minimap** in the HUD corner mirrors the health grid from above, with your position/facing and red/orange/yellow blips for loggers, poachers, and active fires. ![Minimap showing terrain, lake, forest cover, and player position](asset/minimap_rotated.png)
 - **Cross-playthrough achievements** (cumulative planting, threats stopped, fires doused, levels cleared, Endless survival, and more) unlock as toasts — no separate screen to check.
 - **Best-time persistence**: your fastest clear (in in-game days) per level, and your longest Endless survival, are remembered locally and shown on the level-select screen.
+
+---
 
 ## 🗂️ Project structure
 
