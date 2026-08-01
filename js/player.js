@@ -27,6 +27,7 @@ export class PlayerController {
     this._lastStepPhase = 0;
     this.onManualToggle = null;
     this.onPlant = null;
+    this.onViewToggle = null;
 
     this.keys = { w: false, a: false, s: false, d: false };
     this.plantType = "tree";
@@ -85,6 +86,7 @@ export class PlayerController {
       case "KeyQ": if (down) this._water(); break;
       case "KeyF": if (down) this._shoot(); break;
       case "Tab": if (down) { e.preventDefault(); this._cyclePlantType(); } break;
+      case "KeyV": if (down) this.onViewToggle?.(); break;
     }
   }
 

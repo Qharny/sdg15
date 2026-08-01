@@ -13,6 +13,7 @@ import { EnvironmentManager } from "./environment.js";
 import { FireManager } from "./fire.js";
 import { AchievementManager } from "./achievements.js";
 import { Minimap } from "./minimap.js";
+import { PlayerAvatar } from "./playerAvatar.js";
 import { randRange } from "./utils.js";
 import {
   LEVELS, getUnlockedLevel, unlockLevel, consumePendingLevel, setPendingLevel,
@@ -20,6 +21,15 @@ import {
 } from "./levels.js";
 
 const DAY_LENGTH = 100; // seconds per in-game day
+
+const VIEW_MODE_KEY = "sdg15_view_mode";
+// Cycle order for the [V] key. Each entry drives how _updateViewCamera()
+// places the render camera relative to the logical (mouse-look) camera.
+const VIEW_MODES = [
+  { id: "first", label: "First Person" },
+  { id: "third", label: "Third Person" },
+  { id: "shoulder", label: "Over-the-Shoulder" },
+];
 
 // Radial-gradient canvas texture for the sun's glow sprite - generated in
 // code so no image asset needs to be fetched.
@@ -72,6 +82,11 @@ class Game {
     this.player.fireManager = this.fire;
     this.player.poacherManager = this.poachers;
     this.player.onPlant = () => this.achievements.notePlanted();
+
+    this.avatar = new PlayerAvatar(this.scene);
+    const savedView = VIEW_MODES.findIndex((m) => m.id === localStorage.getItem(VIEW_MODE_KEY));
+    this.viewModeIndex = savedView >= 0 ? savedView : 0;
+    this.player.onViewToggle = () => this._cycleView();
 
     this.loggers.onTreeLost = () => {
       this.ui.toast("A tree was cut down! \u{26A0}\u{FE0F}", 2200);
@@ -167,6 +182,15 @@ class Game {
 
     this.camera = new THREE.PerspectiveCamera(
       72, window.innerWidth / window.innerHeight, 0.1, 400
+    );
+
+    // this.camera is the "logical" player - mouse-look, movement, aiming and
+    // AI all read its position/quaternion regardless of view mode. What's
+    // actually rendered is this.viewCamera, which _updateViewCamera() places
+    // relative to this.camera each frame (identical to it in first person,
+    // pulled back behind the (invisible-in-FP) player avatar otherwise).
+    this.viewCamera = new THREE.PerspectiveCamera(
+      this.camera.fov, this.camera.aspect, this.camera.near, this.camera.far
     );
 
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
@@ -329,6 +353,83 @@ class Game {
     }
   }
 
+  _cycleView() {
+    this.viewModeIndex = (this.viewModeIndex + 1) % VIEW_MODES.length;
+    const mode = VIEW_MODES[this.viewModeIndex];
+    localStorage.setItem(VIEW_MODE_KEY, mode.id);
+    this.ui.toast(`\u{1F3A5} View: ${mode.label} [V]`, 1600);
+  }
+
+  // Places this.viewCamera relative to the logical this.camera (mouse-look
+  // stays authoritative for aiming/AI regardless of view mode) and updates
+  // the third-person avatar to match. A short sweep along the eye->camera
+  // line keeps the render camera from clipping through hills.
+  _updateViewCamera() {
+    const mode = VIEW_MODES[this.viewModeIndex].id;
+    const cam = this.camera;
+
+    this.viewCamera.fov = cam.fov;
+    this.viewCamera.aspect = cam.aspect;
+    this.viewCamera.near = cam.near;
+    this.viewCamera.far = cam.far;
+    this.viewCamera.updateProjectionMatrix();
+
+    if (mode === "first") {
+      this.avatar.setVisible(false);
+      this.viewCamera.position.copy(cam.position);
+      this.viewCamera.quaternion.copy(cam.quaternion);
+      return;
+    }
+
+    const forward = new THREE.Vector3();
+    cam.getWorldDirection(forward);
+    const yaw = Math.atan2(forward.x, -forward.z);
+    const groundY = this.terrain.groundHeight(cam.position.x, cam.position.z);
+
+    this.avatar.setVisible(true);
+    this.avatar.update(cam.position.x, cam.position.z, yaw, groundY, this.player.bobPhase, this.player.bobBlend);
+
+    const desired = new THREE.Vector3();
+    if (mode === "shoulder") {
+      const right = new THREE.Vector3().crossVectors(forward, cam.up).normalize();
+      desired.copy(cam.position).addScaledVector(forward, -2.4).addScaledVector(right, 0.55);
+      desired.y += 0.5;
+    } else {
+      desired.copy(cam.position).addScaledVector(forward, -5.5);
+      desired.y += 2;
+    }
+
+    const resolved = this._resolveViewCollision(cam.position, desired);
+    const half = this.terrain.half - 1;
+    resolved.x = Math.min(Math.max(resolved.x, -half), half);
+    resolved.z = Math.min(Math.max(resolved.z, -half), half);
+    resolved.y = Math.max(resolved.y, this.terrain.groundHeight(resolved.x, resolved.z) + 0.5);
+
+    this.viewCamera.position.copy(resolved);
+    this.viewCamera.lookAt(
+      mode === "shoulder" ? cam.position.clone().addScaledVector(forward, 3) : cam.position
+    );
+  }
+
+  // Samples a few points along the eye->desired-camera line and pulls the
+  // camera back to just before the terrain (hills/mountains) would poke
+  // through the view, instead of letting it clip into the hillside.
+  _resolveViewCollision(eye, desired) {
+    const steps = 6;
+    const sample = new THREE.Vector3();
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      sample.copy(eye).lerp(desired, t);
+      const lineY = eye.y + (desired.y - eye.y) * t;
+      const groundY = this.terrain.groundHeight(sample.x, sample.z);
+      if (groundY + 0.4 > lineY) {
+        const backT = (i - 1) / steps;
+        return eye.clone().lerp(desired, backT);
+      }
+    }
+    return desired.clone();
+  }
+
   _updateMinimap(dt) {
     const threats = [];
     for (const lg of this.loggers.loggers) {
@@ -394,14 +495,20 @@ class Game {
     this.trees.update(dt);
     this.animals.update(dt, this.loggers, this.camera.position);
     this.loggers.update(dt);
-    this.loggers.faceBillboards(this.camera.quaternion);
     this.poachers.update(dt);
-    this.poachers.faceBillboards(this.camera.quaternion);
     this.fire.update(dt, envMul.fireChance);
-    this.chat.update(this.camera, this.renderer);
-    this.poacherChat.update(this.camera, this.renderer);
     this.projectiles.update(dt);
     this.player.update(dt);
+
+    // Render camera is placed relative to the (just-moved) logical camera,
+    // so this has to run after player.update() and before anything that
+    // bills itself toward the actual on-screen camera.
+    this._updateViewCamera();
+    this.loggers.faceBillboards(this.viewCamera.quaternion);
+    this.poachers.faceBillboards(this.viewCamera.quaternion);
+    this.chat.update(this.viewCamera, this.renderer);
+    this.poacherChat.update(this.viewCamera, this.renderer);
+
     this._updateFireAudio(dt);
     this._updateMinimap(dt);
 
@@ -448,7 +555,7 @@ class Game {
       });
     }
 
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, this.viewCamera);
   }
 }
 
