@@ -13,13 +13,18 @@ function buildFlameTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext("2d");
-  const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  grad.addColorStop(0, "rgba(255,255,225,1)");
-  grad.addColorStop(0.22, "rgba(255,215,80,1)");
-  grad.addColorStop(0.55, "rgba(255,120,30,0.95)");
-  grad.addColorStop(1, "rgba(255,40,10,0)");
+  // Slightly teardrop-shaped: draw the gradient centered a bit below middle
+  // and squash it vertically so it reads more like a flame tongue than a
+  // uniform glow orb.
+  ctx.translate(size / 2, size * 0.58);
+  ctx.scale(1, 1.35);
+  const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, size / 2.2);
+  grad.addColorStop(0, "rgba(255,230,150,1)");
+  grad.addColorStop(0.28, "rgba(255,150,40,1)");
+  grad.addColorStop(0.6, "rgba(240,70,20,0.9)");
+  grad.addColorStop(1, "rgba(200,30,10,0)");
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
+  ctx.fillRect(-size, -size, size * 2, size * 2);
   return new THREE.CanvasTexture(canvas);
 }
 
@@ -46,6 +51,7 @@ function makeSpritePool(scene, count, tex, { additive = false } = {}) {
       depthWrite: false,
       opacity: 0,
       toneMapped: false, // keep flames vivid regardless of scene tone mapping
+      fog: false, // never let scene fog wash the flame color out
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
     const sprite = new THREE.Sprite(mat);
@@ -113,21 +119,21 @@ export class FireManager {
     const top = this.treeManager.canopyTop(col, row);
 
     const low = this._flameLow[idx];
-    low.position.set(x, groundY + top * 0.32, z);
-    low.scale.set(2.1, 2.1, 1);
+    low.position.set(x, groundY + top * 0.3, z);
+    low.scale.set(1.3, 1.5, 1);
     low.material.opacity = 1;
     low.visible = true;
 
     const high = this._flameHigh[idx];
-    high.position.set(x, groundY + top * 0.98, z);
-    high.scale.set(1.5, 1.9, 1);
+    high.position.set(x, groundY + top * 0.9, z);
+    high.scale.set(0.9, 1.2, 1);
     high.material.opacity = 1;
     high.visible = true;
 
     const smoke = this._smoke[idx];
-    smoke.position.set(x, groundY + top * 1.15, z);
-    smoke.scale.set(2.2, 2.2, 1);
-    smoke.material.opacity = 0.5;
+    smoke.position.set(x, groundY + top * 1.1, z);
+    smoke.scale.set(1.6, 1.6, 1);
+    smoke.material.opacity = 0.4;
     smoke.visible = true;
 
     this.burning.set(k, { col, row, timer: BURN_DURATION, idx, x, z, groundY, top, age: 0 });
@@ -192,23 +198,23 @@ export class FireManager {
       const low = this._flameLow[entry.idx];
       const lowFlicker = 0.75 + Math.sin(t * 7 + entry.col * 3.1) * 0.2 + Math.sin(t * 17 + entry.row) * 0.08;
       low.material.opacity = Math.min(1, lowFlicker);
-      const lowScale = 1.9 + Math.sin(t * 9 + entry.row * 1.7) * 0.35;
-      low.scale.set(lowScale, lowScale * 1.05, 1);
+      const lowScale = 1.25 + Math.sin(t * 9 + entry.row * 1.7) * 0.2;
+      low.scale.set(lowScale, lowScale * 1.15, 1);
 
       const high = this._flameHigh[entry.idx];
-      const highFlicker = 0.65 + Math.sin(t * 8.5 + entry.row * 2.3) * 0.25;
+      const highFlicker = 0.6 + Math.sin(t * 8.5 + entry.row * 2.3) * 0.25;
       high.material.opacity = Math.min(1, highFlicker);
-      const highScaleX = 1.3 + Math.sin(t * 11 + entry.col) * 0.25;
-      const highScaleY = 1.7 + Math.cos(t * 9 + entry.col * 1.3) * 0.3;
+      const highScaleX = 0.8 + Math.sin(t * 11 + entry.col) * 0.15;
+      const highScaleY = 1.05 + Math.cos(t * 9 + entry.col * 1.3) * 0.2;
       high.scale.set(highScaleX, highScaleY, 1);
-      high.position.y = entry.groundY + entry.top * (0.98 + Math.sin(t * 10 + entry.row) * 0.03);
+      high.position.y = entry.groundY + entry.top * (0.9 + Math.sin(t * 10 + entry.row) * 0.04);
 
       const smoke = this._smoke[entry.idx];
       const rise = (entry.age % 3) / 3; // loops so the puff doesn't drift away forever
-      smoke.position.y = entry.groundY + entry.top * 1.1 + rise * 3.5;
-      const smokeScale = 1.8 + rise * 2.2;
+      smoke.position.y = entry.groundY + entry.top * 1.05 + rise * 3.5;
+      const smokeScale = 1.3 + rise * 1.8;
       smoke.scale.set(smokeScale, smokeScale, 1);
-      smoke.material.opacity = 0.45 * (1 - rise);
+      smoke.material.opacity = 0.35 * (1 - rise);
     }
   }
 }
