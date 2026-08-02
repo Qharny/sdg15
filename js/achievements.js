@@ -9,6 +9,7 @@ const DEFAULT_COUNTERS = {
   loggersStopped: 0,
   poachersStopped: 0,
   firesExtinguished: 0,
+  weedsCleared: 0,
   levelsCleared: 0,
   bestEndlessDays: 0,
   hitMaxSeeds: 0,
@@ -24,6 +25,8 @@ const DEFS = [
   { id: "sapling_warden", name: "Sapling Warden", desc: "Restore the Sapling Warden valley.", check: (c) => c.levelsCleared >= 1 },
   { id: "grove_guardian", name: "Grove Guardian", desc: "Restore the Grove Guardian valley.", check: (c) => c.levelsCleared >= 2 },
   { id: "land_restorer", name: "Land Restorer", desc: "Restore the Land Restorer valley.", check: (c) => c.levelsCleared >= 3 },
+  { id: "wetland_warden", name: "Wetland Warden", desc: "Restore the Wetland Marshes valley.", check: (c) => c.levelsCleared >= 4 },
+  { id: "weed_puller", name: "Invasive Fighter", desc: "Clear 15 invasive weed patches.", check: (c) => c.weedsCleared >= 15 },
   { id: "survivor", name: "Survivor", desc: "Survive 10 days in Endless mode.", check: (c) => c.bestEndlessDays >= 10 },
   { id: "full_canteen", name: "No Seed Left Behind", desc: "Fill your seed pouch to capacity.", check: (c) => c.hitMaxSeeds >= 1 },
   { id: "perfect_balance", name: "Perfect Balance", desc: "Reach 50% forest cover and 50% biodiversity at once.", check: (c) => c.hitPerfectBalance >= 1 },
@@ -85,6 +88,7 @@ export class AchievementManager {
   noteLoggerStopped() { this._bump("loggersStopped"); }
   notePoacherStopped() { this._bump("poachersStopped"); }
   noteFireExtinguished() { this._bump("firesExtinguished"); }
+  noteWeedCleared() { this._bump("weedsCleared"); }
   noteLevelCleared(count) { this._raiseTo("levelsCleared", count); }
   noteEndlessDays(days) { this._raiseTo("bestEndlessDays", days); }
   noteMaxSeeds() { this._raiseTo("hitMaxSeeds", 1); }

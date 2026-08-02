@@ -27,7 +27,9 @@ Built with nothing but plain HTML, CSS, and JavaScript ES modules, rendered with
 
 Never played? Press `H` anytime (or the "How to Play" button on the start/pause screens) for the in-game field manual — it covers the objective, mechanics, and a few tips without leaving the browser.
 
-**Win condition:** push forest cover and the biodiversity index to your level's targets (up to **55%** each on Hard), and the ecosystem is officially restored. Clearing all three story levels unlocks **Endless Vigil** — no win condition, just an increasingly hostile valley and a best-survival-days record.
+**Win condition:** push forest cover and the biodiversity index to your level's targets (up to **55%** each on Hard). Clearing the three story levels unlocks a fourth, **Wetland Marshes**, where mudslides off the mountain slopes replace desertification as the main threat. Clearing that unlocks **Endless Vigil** — no win condition, just an increasingly hostile valley and a best-survival-days record.
+
+Every achievement you unlock also earns a **Ranger Skills** point, spendable on permanent upgrades (seed/water capacity, irrigation radius, move speed, regen rate) from the start screen or pause menu. Every run also logs to a local **Leaderboard** you can export/import as JSON to compare with someone else, and **Settings** offers a colorblind-safe terrain palette and a high-contrast HUD mode.
 
 ![First-person gameplay — night scene with HUD showing forest cover, seeds, and minimap](asset/game1.png)
 
@@ -47,6 +49,8 @@ Nothing here is scripted set-dressing — it's a live simulation running on a he
 - **Two things to plant, one real currency**: trees grow slowly into true forest cover and animal habitat; shrubs (`Tab` to switch) are a cheap, fast-growing stopgap that holds land above desert level but deliberately caps out below "mature forest" — useful for firewalling the desert edge while your real trees mature.
 - **Poachers hunt your wildlife** the same way loggers hunt your trees — they path toward a live animal, try to net it, and can be scared off with a well-aimed seed-pod before the net closes.
 - **Wildfires** can ignite on dry, mature trees (far more likely during a drought), burn down their host cell and its tree, and spread to flammable neighbors — put them out with the same irrigate action (`Q`) you use to water land.
+- **Invasive weed patches** take root on recovering-but-not-mature land, choke its health toward a floor, and spread to neighboring cells — cleared with the same slingshot (`Click`/`F`) you use on loggers and poachers.
+- **Mudslides** are a Wetland Marshes-only hazard: mountain-adjacent slopes can suddenly slide during rain, hitting a whole cluster of cells at once instead of the slow creep of desertification.
 - **Weather and seasons compound**: short-term weather (clear/rain/drought) and the long-term season both scale growth, decay, desertification speed, and fire risk, shown together in the HUD.
 - **Mountains, a lake, and the rivers connecting them** are permanent terrain features, not part of the health simulation — they block planting and movement, and land near the water heals faster and decays slower than land out in the open.
 
@@ -84,8 +88,12 @@ js/
   loggers.js         Logger AI: seek → chop → retreat state machine
   poachers.js        Poacher AI: seek → capture → retreat, targeting live animals instead of trees
   fire.js            Wildfire ignition/spread/burnout, extinguished via the irrigate action
-  environment.js     Short-term weather + long-term seasons, combined into growth/decay multipliers
+  weeds.js           Invasive weed patches: spawn/spread/health-drain, cleared via the slingshot
+  environment.js     Short-term weather + long-term seasons, combined into growth/decay/mudslide multipliers
   achievements.js    Cumulative, cross-playthrough achievement tracking (localStorage)
+  skills.js          Ranger skill tree: achievement-earned points spent on permanent player upgrades
+  leaderboard.js     Local leaderboard of runs, with JSON export/import (localStorage, no backend)
+  accessibility.js   Colorblind-safe palette + high-contrast HUD mode (localStorage)
   minimap.js         Canvas-based top-down health-grid minimap with threat blips
   levels.js          Difficulty tuning per level, unlock/pending state, best-result persistence
   chatBubbles.js     DOM speech bubbles for logger/poacher ambient chatter

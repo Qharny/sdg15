@@ -19,15 +19,29 @@ export function heightAt(x, z) {
   );
 }
 
-export function healthToColor(h) {
-  // Stops: desert sand -> cracked dry earth -> scrubland -> lush forest.
-  const stops = [
-    { t: 0.0, c: [0xd9, 0xc2, 0x8f] },
-    { t: 0.18, c: [0x9c, 0x6f, 0x44] },
-    { t: 0.45, c: [0xb7, 0xc4, 0x6c] },
-    { t: 0.75, c: [0x4f, 0x9d, 0x3f] },
-    { t: 1.0, c: [0x1f, 0x6b, 0x2c] },
-  ];
+// Default stops: desert sand -> cracked dry earth -> scrubland -> lush forest.
+const HEALTH_STOPS = [
+  { t: 0.0, c: [0xd9, 0xc2, 0x8f] },
+  { t: 0.18, c: [0x9c, 0x6f, 0x44] },
+  { t: 0.45, c: [0xb7, 0xc4, 0x6c] },
+  { t: 0.75, c: [0x4f, 0x9d, 0x3f] },
+  { t: 1.0, c: [0x1f, 0x6b, 0x2c] },
+];
+
+// Colorblind-safe alternative: same desert->forest progression read entirely
+// through the blue/orange axis (the pairing least likely to collide under
+// protanopia/deuteranopia/tritanopia) instead of red-green, so degraded vs.
+// healthy land stays readable regardless of color vision.
+const HEALTH_STOPS_COLORBLIND = [
+  { t: 0.0, c: [0xe8, 0xa3, 0x3d] },
+  { t: 0.18, c: [0xc9, 0x7b, 0x2b] },
+  { t: 0.45, c: [0x8f, 0xa9, 0xc9] },
+  { t: 0.75, c: [0x3e, 0x6f, 0xa6] },
+  { t: 1.0, c: [0x1b, 0x3a, 0x66] },
+];
+
+export function healthToColor(h, colorblind = false) {
+  const stops = colorblind ? HEALTH_STOPS_COLORBLIND : HEALTH_STOPS;
   let a = stops[0], b = stops[stops.length - 1];
   for (let i = 0; i < stops.length - 1; i++) {
     if (h >= stops[i].t && h <= stops[i + 1].t) {

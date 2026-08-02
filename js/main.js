@@ -11,10 +11,19 @@ import { UI } from "./ui.js";
 import { AudioManager } from "./audio.js";
 import { EnvironmentManager } from "./environment.js";
 import { FireManager } from "./fire.js";
+import { WeedManager } from "./weeds.js";
 import { AchievementManager } from "./achievements.js";
 import { Minimap } from "./minimap.js";
 import { PlayerAvatar } from "./playerAvatar.js";
 import { randRange } from "./utils.js";
+import { SkillManager, renderSkillTree } from "./skills.js";
+import {
+  recordEntry, getRangerName, setRangerName, renderLeaderboard,
+  downloadJSON, copyToClipboard, importJSON,
+} from "./leaderboard.js";
+import {
+  applyAccessibilityClasses, mountAccessibilitySettings, threatColor,
+} from "./accessibility.js";
 import {
   LEVELS, getUnlockedLevel, unlockLevel, consumePendingLevel, setPendingLevel,
   getBestResult, recordResult, getBestEndlessDays, recordEndlessDays,
@@ -81,7 +90,11 @@ class Game {
     );
     this.player.fireManager = this.fire;
     this.player.poacherManager = this.poachers;
+    this.player.weedManager = this.weeds;
     this.player.onPlant = () => this.achievements.notePlanted();
+
+    this.skills = new SkillManager();
+    this.skills.applyAll(this.player);
 
     this.avatar = new PlayerAvatar(this.scene);
     const savedView = VIEW_MODES.findIndex((m) => m.id === localStorage.getItem(VIEW_MODE_KEY));
@@ -105,11 +118,15 @@ class Game {
       if (mgr === this.poachers) {
         this.ui.toast("Poacher scared off - good aim!", 2000);
         this.achievements.notePoacherStopped();
+        this.ui.bumpConfronted();
+      } else if (mgr === this.weeds) {
+        this.ui.toast("Invasive patch cleared! \u{1F33F}", 1800);
+        this.achievements.noteWeedCleared();
       } else {
         this.ui.toast("Logger scared off - keep patrolling your forest!", 2000);
         this.achievements.noteLoggerStopped();
+        this.ui.bumpConfronted();
       }
-      this.ui.bumpConfronted();
       this.audio.chime();
     };
 
@@ -120,6 +137,15 @@ class Game {
     this.fire.onExtinguish = () => this.achievements.noteFireExtinguished();
     this.fire.onBurnedOut = () => this.ui.toast("A tree burned down... \u{1F525}", 2000);
 
+    this.weeds.onSpawn = () => {
+      this.ui.toast("Invasive weeds have taken root! Shoot them with \u{1F3AF} Click/F before they spread.", 2600);
+    };
+
+    this.terrain.onMudslide = () => {
+      this.ui.toast("A mudslide tore down the slope! \u{1F327}\u{FE0F}\u{26F0}\u{FE0F}", 2400);
+      this.audio.alert();
+    };
+
     this.environment.onWeatherChange = (state) => {
       this.ui.toast(WEATHER_TOASTS[state] ?? "The weather shifts.", 3000);
       this.audio.setRain(state === "rain");
@@ -129,7 +155,8 @@ class Game {
     };
 
     this.achievements.onUnlock = (def) => {
-      this.ui.toast(`\u{1F3C6} Achievement unlocked: ${def.name} - ${def.desc}`, 4200);
+      this.skills.grantPoint();
+      this.ui.toast(`\u{1F3C6} Achievement unlocked: ${def.name} - ${def.desc} (+1 skill point \u{1F33F})`, 4200);
       this.audio.fanfare();
     };
 
@@ -156,6 +183,12 @@ class Game {
     this.ui.onDefeatLevelSelect(() => location.reload());
     this.ui.onManualOpen(() => this._openManual());
     this.ui.onManualClose(() => this._closeManual());
+    this.ui.onSkillsOpen(() => this._openSkills());
+    this.ui.onSkillsClose(() => this._closeSkills());
+    this.ui.onLeaderboardOpen(() => this._openLeaderboard());
+    this.ui.onLeaderboardClose(() => this._closeLeaderboard());
+    this.ui.onSettingsOpen(() => this._openSettings());
+    this.ui.onSettingsClose(() => this._closeSettings());
 
     // The pause screen previously had nothing wired to its "click to
     // resume" text - clicking the canvas itself re-requests pointer lock,
@@ -280,8 +313,9 @@ class Game {
     this.poachers = new PoacherManager(this.scene, this.terrain, this.animals, this.level);
     this.chat = new ChatBubbleManager(this.loggers.loggers);
     this.poacherChat = new ChatBubbleManager(this.poachers.poachers);
-    this.projectiles = new ProjectileManager(this.scene, this.terrain, [this.loggers, this.poachers]);
     this.fire = new FireManager(this.scene, this.terrain, this.trees);
+    this.weeds = new WeedManager(this.scene, this.terrain);
+    this.projectiles = new ProjectileManager(this.scene, this.terrain, [this.loggers, this.poachers, this.weeds]);
     this.minimap = new Minimap(this.terrain);
   }
 
@@ -433,14 +467,18 @@ class Game {
   _updateMinimap(dt) {
     const threats = [];
     for (const lg of this.loggers.loggers) {
-      if (lg.active) threats.push({ x: lg.mesh.position.x, z: lg.mesh.position.z, color: "#ff5555" });
+      if (lg.active) threats.push({ x: lg.mesh.position.x, z: lg.mesh.position.z, color: threatColor("logger") });
     }
     for (const p of this.poachers.poachers) {
-      if (p.active) threats.push({ x: p.mesh.position.x, z: p.mesh.position.z, color: "#ffaa33" });
+      if (p.active) threats.push({ x: p.mesh.position.x, z: p.mesh.position.z, color: threatColor("poacher") });
     }
     for (const f of this.fire.activeCells()) {
       const { x, z } = this.terrain.worldPos(f.col, f.row);
-      threats.push({ x, z, color: "#ffcc33" });
+      threats.push({ x, z, color: threatColor("fire") });
+    }
+    for (const w of this.weeds.activeCells()) {
+      const { x, z } = this.terrain.worldPos(w.col, w.row);
+      threats.push({ x, z, color: threatColor("weed") });
     }
 
     const dir = new THREE.Vector3();
@@ -464,8 +502,56 @@ class Game {
     // Only auto-resume if the game was already underway (start screen
     // dismissed) - opening the manual out of curiosity from the start
     // screen shouldn't silently launch the game on close.
+    this._resumeIfUnderway();
+  }
+
+  _resumeIfUnderway() {
     const alreadyStarted = this.ui.el.start.classList.contains("hidden");
     if (!this.ui.wonAlready && !this.ui.lostAlready && alreadyStarted) this._resume();
+  }
+
+  // Re-renders the skill list each time it's opened and after every
+  // purchase, so the "Upgrade" buttons reflect the player's current point
+  // balance and any newly-maxed nodes immediately.
+  _refreshSkillsUI() {
+    this.ui.renderSkillsInto(this.skills, (id) => {
+      if (this.skills.upgrade(id)) {
+        this.skills.applyAll(this.player);
+        this.audio.chime();
+      }
+      this._refreshSkillsUI();
+    });
+  }
+
+  _openSkills() {
+    this._refreshSkillsUI();
+    this.ui.showSkills();
+    if (this.player.locked) document.exitPointerLock?.();
+  }
+
+  _closeSkills() {
+    this.ui.hideSkills();
+    this._resumeIfUnderway();
+  }
+
+  _openLeaderboard() {
+    this.ui.showLeaderboard();
+    if (this.player.locked) document.exitPointerLock?.();
+  }
+
+  _closeLeaderboard() {
+    this.ui.hideLeaderboard();
+    this._resumeIfUnderway();
+  }
+
+  _openSettings() {
+    this.ui.showSettings();
+    if (this.player.locked) document.exitPointerLock?.();
+  }
+
+  _closeSettings() {
+    this.ui.hideSettings();
+    this._resumeIfUnderway();
   }
 
   _onResize() {
@@ -497,6 +583,7 @@ class Game {
     this.loggers.update(dt);
     this.poachers.update(dt);
     this.fire.update(dt, envMul.fireChance);
+    this.weeds.update(dt, envMul.desertSpread);
     this.projectiles.update(dt);
     this.player.update(dt);
 
@@ -529,6 +616,7 @@ class Game {
       plantType: this.player.plantType,
       weatherLabel: this.environment.weatherLabel(),
       seasonLabel: this.environment.seasonLabel(),
+      skillPoints: this.skills.points,
     });
     this.ui.updatePrompt(this.player.target);
 
@@ -536,6 +624,10 @@ class Game {
       if (!this.ui.lostAlready && this.terrain.desertPct() >= (this.level.collapseDesertPct ?? 85)) {
         const isNewBest = recordEndlessDays(this.day);
         this.achievements.noteEndlessDays(getBestEndlessDays());
+        recordEntry({
+          name: getRangerName(), levelName: this.level.name, levelIndex: this.levelIndex,
+          endless: true, days: this.day,
+        });
         this.ui.showDefeat({ day: this.day, bestDays: getBestEndlessDays(), isNewBest });
       }
     } else if (forestPct >= this.level.winForestPct && biodiversity >= this.level.winBiodiversityPct) {
@@ -544,6 +636,10 @@ class Game {
         unlockLevel(this.levelIndex + 1);
         this.achievements.noteLevelCleared(this.levelIndex + 1);
         isNewBest = recordResult(this.levelIndex, this.day);
+        recordEntry({
+          name: getRangerName(), levelName: this.level.name, levelIndex: this.levelIndex,
+          endless: false, days: this.day, forestPct, biodiversity,
+        });
       }
       this.ui.showVictory({ forestPct, biodiversity, day: this.day }, {
         levelIndex: this.levelIndex,
@@ -575,6 +671,80 @@ function initLevelSelect() {
   const manualBtn = document.getElementById("btn-manual-start");
   const manualScreen = document.getElementById("manual-screen");
   const manualCloseBtn = document.getElementById("btn-manual-close");
+
+  // Accessibility, Ranger Skills and Leaderboard are all reachable from the
+  // start screen too, before any Game/UI instance exists - wired directly
+  // against the DOM here (same pattern the manual button above already
+  // uses) rather than through the UI class.
+  applyAccessibilityClasses();
+  mountAccessibilitySettings(
+    document.getElementById("settings-colorblind"),
+    document.getElementById("settings-high-contrast")
+  );
+  const settingsScreen = document.getElementById("settings-screen");
+  document.getElementById("btn-settings-start").addEventListener("click", () => settingsScreen.classList.remove("hidden"));
+  document.getElementById("btn-settings-close").addEventListener("click", () => settingsScreen.classList.add("hidden"));
+
+  const skillsScreen = document.getElementById("skills-screen");
+  const skillsPointsEl = document.getElementById("skills-points");
+  const skillsListEl = document.getElementById("skills-list");
+  const standaloneSkills = new SkillManager();
+  function refreshStandaloneSkills() {
+    renderSkillTree(skillsPointsEl, skillsListEl, standaloneSkills, (id) => {
+      standaloneSkills.upgrade(id);
+      refreshStandaloneSkills();
+    });
+  }
+  document.getElementById("btn-skills-start").addEventListener("click", () => {
+    refreshStandaloneSkills();
+    skillsScreen.classList.remove("hidden");
+  });
+  document.getElementById("btn-skills-close").addEventListener("click", () => skillsScreen.classList.add("hidden"));
+
+  const leaderboardScreen = document.getElementById("leaderboard-screen");
+  const leaderboardListEl = document.getElementById("leaderboard-list");
+  const nameInput = document.getElementById("leaderboard-name-input");
+  const importText = document.getElementById("leaderboard-import-text");
+  const importMsg = document.getElementById("leaderboard-import-msg");
+  nameInput.value = getRangerName();
+  nameInput.addEventListener("change", () => { nameInput.value = setRangerName(nameInput.value); });
+  document.getElementById("btn-leaderboard-start").addEventListener("click", () => {
+    renderLeaderboard(leaderboardListEl);
+    leaderboardScreen.classList.remove("hidden");
+  });
+  document.getElementById("btn-leaderboard-close").addEventListener("click", () => leaderboardScreen.classList.add("hidden"));
+  document.getElementById("btn-leaderboard-export").addEventListener("click", () => downloadJSON());
+  document.getElementById("btn-leaderboard-copy").addEventListener("click", async () => {
+    try {
+      await copyToClipboard();
+      importMsg.textContent = "Copied to clipboard.";
+    } catch {
+      importMsg.textContent = "Couldn't access the clipboard - try Export instead.";
+    }
+  });
+  function handleImport(text) {
+    try {
+      const n = importJSON(text);
+      renderLeaderboard(leaderboardListEl);
+      importMsg.textContent = `Imported ${n} entr${n === 1 ? "y" : "ies"}.`;
+    } catch (err) {
+      importMsg.textContent = err.message;
+    }
+  }
+  document.getElementById("btn-leaderboard-import").addEventListener("click", () => {
+    handleImport(importText.value);
+    importText.value = "";
+  });
+  const fileInput = document.getElementById("leaderboard-file-input");
+  document.getElementById("btn-leaderboard-import-file").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => handleImport(reader.result);
+    reader.readAsText(file);
+    e.target.value = "";
+  });
 
   const unlocked = getUnlockedLevel();
 

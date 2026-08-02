@@ -350,7 +350,7 @@ button:active { transform: translateY(0); }
   .level-grid { grid-template-columns: 1fr; }
 }
 
-#manual-screen { z-index: 50; }
+#manual-screen, #skills-screen, #leaderboard-screen, #settings-screen { z-index: 50; }
 .manual-card {
   max-width: 680px;
   text-align: left;
@@ -399,4 +399,88 @@ button:active { transform: translateY(0); }
 @media (max-width: 520px) {
   .controls-grid { grid-template-columns: 1fr; }
   .card { padding: 24px 20px; }
+}
+
+/* Ranger skills */
+.skill-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.skill-info { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.skill-name { font-size: 14px; font-weight: 700; }
+.skill-level { font-size: 11.5px; font-weight: 600; color: #a7e08a; margin-left: 4px; }
+.skill-desc { font-size: 12.5px; opacity: 0.85; }
+.skill-btn { white-space: nowrap; padding: 9px 16px; font-size: 13px; }
+.skill-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+/* Leaderboard */
+.leaderboard-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+}
+.leaderboard-name-row input {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+}
+.leaderboard-section { margin-bottom: 16px; }
+.leaderboard-section h4 { margin: 0 0 6px; font-size: 13.5px; color: #a7e08a; }
+.leaderboard-table td:first-child { width: 10%; }
+.leaderboard-empty { font-size: 13.5px; opacity: 0.8; }
+.leaderboard-import-text {
+  width: 100%;
+  min-height: 64px;
+  margin: 4px 0 0;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px;
+  padding: 10px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 12.5px;
+  resize: vertical;
+}
+.leaderboard-import-msg { font-size: 12.5px; min-height: 1.4em; opacity: 0.9; color: #a7e08a; }
+
+/* Settings */
+.settings-row { text-align: left; font-size: 14px; margin: 14px 0; }
+.settings-row label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.settings-row input[type="checkbox"] { width: 18px; height: 18px; }
+
+/* Accessibility: high-contrast HUD - stronger borders/opacity and bolder
+   text on the HUD panel and overlay cards, on top of whatever color mode
+   (default or colorblind-safe) is active. */
+.high-contrast-mode .panel,
+.high-contrast-mode #minimap-wrap {
+  background: rgba(6, 14, 8, 0.94);
+  border-color: rgba(255,255,255,0.4);
+}
+.high-contrast-mode .stat-value,
+.high-contrast-mode .mini-stats strong {
+  color: #ffffff;
+  font-weight: 800;
+}
+.high-contrast-mode .bar { background: rgba(255,255,255,0.28); }
+.high-contrast-mode #prompt {
+  background: rgba(0,0,0,0.92);
+  border-color: rgba(255,255,255,0.5);
+  font-weight: 800;
+}
+.high-contrast-mode .card {
+  background: rgba(4, 10, 6, 0.98);
+  border-color: rgba(255,255,255,0.35);
 }

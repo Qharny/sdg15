@@ -1,3 +1,6 @@
+import { renderSkillTree } from "./skills.js";
+import { renderLeaderboard } from "./leaderboard.js";
+
 const FACTS = [
   "SDG 15 calls for the sustainable management of forests, combating desertification, and halting biodiversity loss by 2030.",
   "The world has lost about 420 million hectares of forest since 1990 through conversion to other land uses.",
@@ -42,6 +45,13 @@ export class UI {
       victoryTitle: document.getElementById("victory-title"),
       victorySubtitle: document.getElementById("victory-subtitle"),
       btnNextLevel: document.getElementById("btn-next-level"),
+      skillPoints: document.getElementById("stat-skillpoints"),
+      skills: document.getElementById("skills-screen"),
+      skillsPoints: document.getElementById("skills-points"),
+      skillsList: document.getElementById("skills-list"),
+      leaderboard: document.getElementById("leaderboard-screen"),
+      leaderboardList: document.getElementById("leaderboard-list"),
+      settings: document.getElementById("settings-screen"),
     };
     this.plantedCount = 0;
     this.confrontedCount = 0;
@@ -50,6 +60,9 @@ export class UI {
     this.wonAlready = false;
     this.lostAlready = false;
     this.manualOpen = false;
+    this.skillsOpen = false;
+    this.leaderboardOpen = false;
+    this.settingsOpen = false;
   }
 
   setLevelInfo(level, levelIndex) {
@@ -100,6 +113,68 @@ export class UI {
     this.el.manual.classList.add("hidden");
   }
 
+  onSkillsOpen(cb) {
+    document.getElementById("btn-skills-pause").addEventListener("click", cb);
+  }
+
+  onSkillsClose(cb) {
+    document.getElementById("btn-skills-close").addEventListener("click", cb);
+  }
+
+  showSkills() {
+    this.skillsOpen = true;
+    this.el.skills.classList.remove("hidden");
+    this.el.pause.classList.add("hidden");
+  }
+
+  hideSkills() {
+    this.skillsOpen = false;
+    this.el.skills.classList.add("hidden");
+  }
+
+  renderSkillsInto(skillManager, onUpgrade) {
+    renderSkillTree(this.el.skillsPoints, this.el.skillsList, skillManager, onUpgrade);
+  }
+
+  onLeaderboardOpen(cb) {
+    document.getElementById("btn-leaderboard-pause").addEventListener("click", cb);
+  }
+
+  onLeaderboardClose(cb) {
+    document.getElementById("btn-leaderboard-close").addEventListener("click", cb);
+  }
+
+  showLeaderboard() {
+    this.leaderboardOpen = true;
+    renderLeaderboard(this.el.leaderboardList);
+    this.el.leaderboard.classList.remove("hidden");
+    this.el.pause.classList.add("hidden");
+  }
+
+  hideLeaderboard() {
+    this.leaderboardOpen = false;
+    this.el.leaderboard.classList.add("hidden");
+  }
+
+  onSettingsOpen(cb) {
+    document.getElementById("btn-settings-pause").addEventListener("click", cb);
+  }
+
+  onSettingsClose(cb) {
+    document.getElementById("btn-settings-close").addEventListener("click", cb);
+  }
+
+  showSettings() {
+    this.settingsOpen = true;
+    this.el.settings.classList.remove("hidden");
+    this.el.pause.classList.add("hidden");
+  }
+
+  hideSettings() {
+    this.settingsOpen = false;
+    this.el.settings.classList.add("hidden");
+  }
+
   onPointerLock(locked) {
     this.el.pause.classList.toggle("hidden", locked || this.wonAlready || this.lostAlready || this.manualOpen);
     this.el.crosshair.classList.toggle("hidden", !locked);
@@ -148,7 +223,7 @@ export class UI {
     }
   }
 
-  update({ forestPct, biodiversity, day, seeds, maxSeeds, water, maxWater, plantType, weatherLabel, seasonLabel }) {
+  update({ forestPct, biodiversity, day, seeds, maxSeeds, water, maxWater, plantType, weatherLabel, seasonLabel, skillPoints }) {
     this.el.forest.textContent = `${forestPct.toFixed(1)}%`;
     this.el.forestBar.style.width = `${forestPct}%`;
     this.el.bio.textContent = `${biodiversity.toFixed(0)}%`;
@@ -163,6 +238,7 @@ export class UI {
     if (weatherLabel) {
       this.el.weather.textContent = seasonLabel ? `${weatherLabel} · ${seasonLabel}` : weatherLabel;
     }
+    if (this.el.skillPoints && skillPoints !== undefined) this.el.skillPoints.textContent = skillPoints;
 
     if (day !== this.lastDay) {
       this.lastDay = day;

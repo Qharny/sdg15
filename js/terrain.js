@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { clamp, healthToColor, heightAt, randRange } from "./utils.js";
 import { generateWorldFeatures, CellType } from "./worldgen.js";
+import { isColorblindMode } from "./accessibility.js";
 
 const DESERT_THRESHOLD = 0.14;
 const PLANTABLE_THRESHOLD = 0.16;
@@ -25,6 +26,18 @@ export class Terrain {
     this.desertSpreadAmount = opts.desertSpreadAmount ?? 0.03;
     this.desertRadiusFactor = opts.desertRadiusFactor ?? 0.22;
     this.forestRadiusFactor = opts.forestRadiusFactor ?? 0.24;
+
+    // Mudslide hazard - opt-in per level (currently just Wetland Marshes).
+    // Unlike desertification, this isn't a slow creep: it's a sudden, sharp
+    // hit to a cluster of cells on a mountain-adjacent slope, so it rewards
+    // patrolling the high ground rather than reacting to it after the fact.
+    this.mudslideEnabled = !!opts.mudslide;
+    this.mudslideInterval = opts.mudslideInterval ?? 9;
+    this.mudslideChance = opts.mudslideChance ?? 0.4;
+    this.mudslideRadius = opts.mudslideRadius ?? 2;
+    this.mudslideAmount = opts.mudslideAmount ?? 0.22;
+    this._mudslideAccum = randRange(0, this.mudslideInterval);
+    this.onMudslide = null; // (col, row) => {}
 
     const { cellType, elevation } = generateWorldFeatures(size);
     this.cellType = cellType;
@@ -142,7 +155,7 @@ export class Terrain {
       const base = 0.42 + t * 0.3; // lighter/greyer near the peaks
       return [base, base * 0.96, base * 0.92];
     }
-    return healthToColor(this.health[i]);
+    return healthToColor(this.health[i], isColorblindMode());
   }
 
   // A still, semi-transparent water plane sitting above the dipped ground
@@ -314,6 +327,41 @@ export class Terrain {
     }
   }
 
+  // Picks a random land cell adjacent to a mountain (a slope) and damages a
+  // radius around it, fading out with distance from the epicenter - a sudden
+  // hit rather than the desert's gradual erosion.
+  _triggerMudslide() {
+    const { size } = this;
+    for (let tries = 0; tries < 20; tries++) {
+      const col = (Math.random() * size) | 0;
+      const row = (Math.random() * size) | 0;
+      if (this.cellType[this.index(col, row)] !== CellType.LAND) continue;
+      let onSlope = false;
+      for (let dr = -1; dr <= 1 && !onSlope; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nc = col + dc, nr = row + dr;
+          if (this.inBounds(nc, nr) && this.cellType[this.index(nc, nr)] === CellType.MOUNTAIN) {
+            onSlope = true;
+            break;
+          }
+        }
+      }
+      if (!onSlope) continue;
+
+      const r = this.mudslideRadius;
+      for (let dr = -r; dr <= r; dr++) {
+        for (let dc = -r; dc <= r; dc++) {
+          const dist = Math.hypot(dc, dr);
+          if (dist > r) continue;
+          this.adjustHealth(col + dc, row + dr, -this.mudslideAmount * (1 - dist / (r + 1)));
+        }
+      }
+      if (this.onMudslide) this.onMudslide(col, row);
+      return;
+    }
+  }
+
   // Used by Endless mode to make the valley progressively harder to hold
   // the longer the player survives.
   escalate(factor = 1.08) {
@@ -344,9 +392,17 @@ export class Terrain {
     return land ? (desert / land) * 100 : 0;
   }
 
-  update(dt, treeManager, envMultipliers = { growth: 1, decay: 1, desertSpread: 1 }) {
+  update(dt, treeManager, envMultipliers = { growth: 1, decay: 1, desertSpread: 1, mudslide: 1 }) {
     this._tickAccum += dt;
     const { size } = this;
+
+    if (this.mudslideEnabled) {
+      this._mudslideAccum += dt;
+      if (this._mudslideAccum > this.mudslideInterval) {
+        this._mudslideAccum = 0;
+        if (Math.random() < this.mudslideChance * (envMultipliers.mudslide ?? 1)) this._triggerMudslide();
+      }
+    }
 
     // Passive decay/growth pass - cheap enough to run on the whole grid.
     for (let row = 0; row < size; row++) {

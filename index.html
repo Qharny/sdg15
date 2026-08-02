@@ -58,6 +58,9 @@
         <span>Planting <strong id="stat-planttype">Tree 🌳</strong></span>
         <span id="stat-weather">☀️ Clear</span>
       </div>
+      <div class="mini-stats">
+        <span>🌿 Skill points <strong id="stat-skillpoints">0</strong></span>
+      </div>
       <div class="manual-hint" id="hud-level">Press <kbd>H</kbd> for the manual</div>
     </div>
   </div>
@@ -88,6 +91,9 @@
         <div id="level-grid" class="level-grid"></div>
         <div class="button-row">
           <button id="btn-manual-start" class="btn-secondary">📖 How to Play</button>
+          <button id="btn-skills-start" class="btn-secondary">🌿 Ranger Skills</button>
+          <button id="btn-leaderboard-start" class="btn-secondary">🏆 Leaderboard</button>
+          <button id="btn-settings-start" class="btn-secondary">⚙️ Settings</button>
         </div>
       </div>
 
@@ -110,6 +116,9 @@
       <div class="button-row">
         <button id="btn-resume">Resume</button>
         <button id="btn-manual-pause" class="btn-secondary">📖 How to Play</button>
+        <button id="btn-skills-pause" class="btn-secondary">🌿 Ranger Skills</button>
+        <button id="btn-leaderboard-pause" class="btn-secondary">🏆 Leaderboard</button>
+        <button id="btn-settings-pause" class="btn-secondary">⚙️ Settings</button>
       </div>
     </div>
   </div>
@@ -195,6 +204,37 @@
         </section>
 
         <section>
+          <h3>🌿 Invasive weeds</h3>
+          <p>Weed patches can take root on land that's recovering but not yet mature forest, choking its health down
+          toward a floor instead of killing it outright, and spreading to nearby land the way fire spreads to
+          flammable neighbors. Your slingshot clears them the same way it scares off loggers and poachers — aim and
+          fire with <kbd>Click</kbd> or <kbd>F</kbd>.</p>
+        </section>
+
+        <section>
+          <h3>⛰️ Mudslides (Wetland Marshes)</h3>
+          <p>The Wetland Marshes level barely desertifies on its own, but its mountain-adjacent slopes can suddenly
+          slide during rain, damaging a whole cluster of cells at once. Patrol the high ground and irrigate/replant
+          fast after a slide instead of trying to prevent it.</p>
+        </section>
+
+        <section>
+          <h3>🌿 Ranger Skills</h3>
+          <p>Every achievement you unlock also grants a skill point, spendable on permanent, cross-playthrough
+          upgrades — bigger seed pouch, bigger canteen, wider irrigation, faster movement, quicker regen. Open the
+          skill tree from the start screen or the pause menu; upgrades apply immediately and carry into every future
+          run.</p>
+        </section>
+
+        <section>
+          <h3>🏆 Leaderboard &amp; ⚙️ Settings</h3>
+          <p>Every level clear and Endless survival is logged to a local leaderboard (no server involved) — export
+          it to a JSON file or copy it to your clipboard to compare with someone else's, and import theirs back in.
+          Settings offers a colorblind-safe terrain/threat palette and a high-contrast HUD mode, both reachable from
+          the start screen.</p>
+        </section>
+
+        <section>
           <h3>🌦️ Weather &amp; seasons</h3>
           <p>Short-term weather (clear, rain, or drought) and the long-term season both shift growth, decay,
           desertification speed, and fire risk — shown together in your HUD. Rain speeds up growth and refills your
@@ -258,6 +298,54 @@
       </div>
 
       <button id="btn-manual-close">Got it — back to the valley</button>
+    </div>
+  </div>
+
+  <div id="skills-screen" class="overlay hidden">
+    <div class="card manual-card">
+      <h1>🌿 Ranger Skills</h1>
+      <p class="subtitle">Permanent upgrades, earned from achievements — they carry over into every run</p>
+      <p class="goal" id="skills-points">🌿 0 skill points available</p>
+      <div class="manual-body" id="skills-list"></div>
+      <button id="btn-skills-close">Back</button>
+    </div>
+  </div>
+
+  <div id="leaderboard-screen" class="overlay hidden">
+    <div class="card manual-card">
+      <h1>🏆 Leaderboard</h1>
+      <p class="subtitle">Local only — no server. Export/import a JSON file to compare runs with someone else.</p>
+      <div class="leaderboard-name-row">
+        <label for="leaderboard-name-input">Ranger name</label>
+        <input type="text" id="leaderboard-name-input" maxlength="24" placeholder="Ranger" />
+      </div>
+      <div class="manual-body" id="leaderboard-list"></div>
+      <div class="button-row">
+        <button id="btn-leaderboard-export" class="btn-secondary">⬇️ Export (.json)</button>
+        <button id="btn-leaderboard-copy" class="btn-secondary">📋 Copy JSON</button>
+        <button id="btn-leaderboard-import-file" class="btn-secondary">📂 Import file</button>
+      </div>
+      <textarea id="leaderboard-import-text" class="leaderboard-import-text" placeholder="…or paste exported leaderboard JSON here"></textarea>
+      <div class="button-row">
+        <button id="btn-leaderboard-import" class="btn-secondary">Import pasted JSON</button>
+      </div>
+      <p class="leaderboard-import-msg" id="leaderboard-import-msg"></p>
+      <input type="file" id="leaderboard-file-input" accept="application/json,.json" class="hidden" />
+      <button id="btn-leaderboard-close">Back</button>
+    </div>
+  </div>
+
+  <div id="settings-screen" class="overlay hidden">
+    <div class="card">
+      <h1>⚙️ Settings</h1>
+      <p class="subtitle">Accessibility</p>
+      <div class="settings-row">
+        <label><input type="checkbox" id="settings-colorblind" /> Colorblind-safe terrain &amp; threat colors</label>
+      </div>
+      <div class="settings-row">
+        <label><input type="checkbox" id="settings-high-contrast" /> High-contrast HUD</label>
+      </div>
+      <button id="btn-settings-close">Back</button>
     </div>
   </div>
 

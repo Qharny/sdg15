@@ -15,9 +15,9 @@ export const SEASONS = [
 ];
 
 const WEATHER = {
-  clear: { label: "Clear", icon: "\u{2600}\u{FE0F}", growth: 1, decay: 1, desertSpread: 1, waterRegen: 1, fireChance: 1 },
-  rain: { label: "Rain", icon: "\u{1F327}\u{FE0F}", growth: 1.4, decay: 0.6, desertSpread: 0.5, waterRegen: 2.2, fireChance: 0 },
-  drought: { label: "Drought", icon: "\u{1F525}", growth: 0.6, decay: 1.5, desertSpread: 1.8, waterRegen: 0.5, fireChance: 3.5 },
+  clear: { label: "Clear", icon: "\u{2600}\u{FE0F}", growth: 1, decay: 1, desertSpread: 1, waterRegen: 1, fireChance: 1, mudslide: 1 },
+  rain: { label: "Rain", icon: "\u{1F327}\u{FE0F}", growth: 1.4, decay: 0.6, desertSpread: 0.5, waterRegen: 2.2, fireChance: 0, mudslide: 2.5 },
+  drought: { label: "Drought", icon: "\u{1F525}", growth: 0.6, decay: 1.5, desertSpread: 1.8, waterRegen: 0.5, fireChance: 3.5, mudslide: 0.3 },
 };
 
 export class EnvironmentManager {
@@ -69,6 +69,7 @@ export class EnvironmentManager {
       desertSpread: s.desertSpread * w.desertSpread,
       waterRegen: w.waterRegen,
       fireChance: w.fireChance,
+      mudslide: w.mudslide,
     };
   }
 

@@ -38,10 +38,13 @@ export class PlayerController {
     this.seedRegenTime = opts.seedRegenTime ?? 9;
     this.waterRegenRate = opts.waterRegenRate ?? 5.5;
     this.waterDrainPerUse = opts.waterDrainPerUse ?? 18;
+    this.waterRadius = 1; // cells irrigated/doused around the target point - boosted by the Wider Irrigation skill
+    this.moveSpeedMult = 1; // boosted by the Swift Stride skill
     this.shootCooldown = 0;
     this.envWaterMultiplier = 1;
     this.fireManager = null; // set externally once constructed
     this.poacherManager = null; // set externally once constructed
+    this.weedManager = null; // set externally once constructed
 
     this.seedRegenAccum = 0;
     this.target = { type: null, col: 0, row: 0 };
@@ -120,7 +123,7 @@ export class PlayerController {
     this.camera.getWorldDirection(forward);
     const x = pos.x + forward.x * 3;
     const z = pos.z + forward.z * 3;
-    this.terrain.waterAround(x, z, 1, 0.24);
+    this.terrain.waterAround(x, z, this.waterRadius, 0.24);
     const extinguished = this.fireManager?.extinguishAt(x, z);
     this.water -= this.waterDrainPerUse;
     if (extinguished) {
@@ -146,7 +149,11 @@ export class PlayerController {
     const forward = new THREE.Vector3();
     this.camera.getWorldDirection(forward);
 
-    if (this.loggerManager.findAimedTarget(pos, forward) || this.poacherManager?.findAimedTarget(pos, forward)) {
+    if (
+      this.loggerManager.findAimedTarget(pos, forward) ||
+      this.poacherManager?.findAimedTarget(pos, forward) ||
+      this.weedManager?.findAimedTarget(pos, forward)
+    ) {
       this.target = { type: "shoot" };
       return;
     }
@@ -178,8 +185,9 @@ export class PlayerController {
       );
       const forwardAmount = (this.keys.w ? 1 : 0) - (this.keys.s ? 1 : 0);
       const moving = forwardAmount !== 0 || dir.x !== 0;
-      if (forwardAmount !== 0) this.controls.moveForward(forwardAmount * MOVE_SPEED * dt);
-      if (dir.x !== 0) this.controls.moveRight(dir.x * MOVE_SPEED * dt);
+      const speed = MOVE_SPEED * this.moveSpeedMult;
+      if (forwardAmount !== 0) this.controls.moveForward(forwardAmount * speed * dt);
+      if (dir.x !== 0) this.controls.moveRight(dir.x * speed * dt);
 
       const p = this.camera.position;
       const half = this.terrain.half - 1;
@@ -201,7 +209,7 @@ export class PlayerController {
       // Head-bob: eases toward a moving/idle blend so it starts and stops
       // smoothly rather than snapping, then rides a sine wave for the bob.
       this.bobBlend += ((moving ? 1 : 0) - this.bobBlend) * Math.min(1, dt * 6);
-      if (moving) this.bobPhase += dt * MOVE_SPEED * 0.9;
+      if (moving) this.bobPhase += dt * speed * 0.9;
       const bobY = Math.sin(this.bobPhase * 2) * 0.055 * this.bobBlend;
       const idleSway = Math.sin(performance.now() * 0.0006) * 0.012;
       p.y = this.terrain.groundHeight(p.x, p.z) + EYE_HEIGHT + bobY + idleSway;
