@@ -22,6 +22,7 @@ Built with nothing but plain HTML, CSS, and JavaScript ES modules, rendered with
 | Switch tree / shrub | `Tab` |
 | Irrigate land / douse a fire | `Q` |
 | Shoot loggers & poachers | Click or `F` |
+| Change camera view | `V` |
 | Open the field manual | `H` |
 | Pause | `Esc` |
 
@@ -66,6 +67,7 @@ Nothing here is scripted set-dressing — it's a live simulation running on a he
 - **Organic trees**: each one is built from a randomized cluster of 2–3 overlapping canopy lobes plus a tilted trunk, with a continuous wind-sway animation — no two trees are identical, and none of them are a perfect cone.
 - **A real day/night cycle**: a shader-driven sky dome gradient (horizon → zenith) and a sun sprite track a moving directional light, with shadows, ambient light, and fog color all shifting together.
 - **First-person head-bob and a subtle FOV kick** while walking, for a bit of physicality instead of a static gliding camera.
+- **Three selectable camera views** (`V` to cycle) — first-person, third-person, and over-the-shoulder — with a low-poly ranger avatar that appears automatically once you're outside first-person view.
 - **Fully procedural, synthesized audio** — ambient wind, footsteps, a planting chime, and a logger alert tone are all generated at runtime with the Web Audio API. No audio files are shipped or fetched.
 - **Toasts cycle real SDG 15 facts** as in-game days pass, tying the mechanics back to the actual goal.
 - **A live minimap** in the HUD corner mirrors the health grid from above, with your position/facing and red/orange/yellow blips for loggers, poachers, and active fires. ![Minimap showing terrain, lake, forest cover, and player position](asset/minimap_rotated.png)
@@ -99,9 +101,10 @@ js/
   chatBubbles.js     DOM speech bubbles for logger/poacher ambient chatter
   projectiles.js     Seed-pod slingshot physics and hit detection against loggers/poachers
   player.js          Pointer-lock controls, movement, head-bob, resources, interactions
+  playerAvatar.js    Low-poly ranger figure shown in third-person / over-the-shoulder view
   audio.js           Web Audio synthesis (wind, footsteps, chime, alert, fanfare, fire, rain) — no asset files
   ui.js              HUD updates, toasts, SDG 15 facts, start/pause/victory/defeat screens
-  main.js            Scene/renderer/lighting setup, sky dome, day/night cycle, game loop
+  main.js            Scene/renderer/lighting setup, sky dome, day/night cycle, camera views, game loop
 ```
 
 ## ▶️ Running it locally
