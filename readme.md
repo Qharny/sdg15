@@ -28,6 +28,8 @@ Built with nothing but plain HTML, CSS, and JavaScript ES modules, rendered with
 
 Never played? Press `H` anytime (or the "How to Play" button on the start/pause screens) for the in-game field manual — it covers the objective, mechanics, and a few tips without leaving the browser.
 
+📱 **On phones and tablets**, the same controls above show up as touch equivalents automatically: a virtual joystick for movement, drag-to-look anywhere on screen, and on-screen buttons for planting, irrigating, shooting, switching plant type, changing camera view, and pausing. Landscape orientation only — you'll get a "rotate your device" prompt in portrait.
+
 **Win condition:** push forest cover and the biodiversity index to your level's targets (up to **55%** each on Hard). Clearing the three story levels unlocks a fourth, **Wetland Marshes**, where mudslides off the mountain slopes replace desertification as the main threat. Clearing that unlocks **Endless Vigil** — no win condition, just an increasingly hostile valley and a best-survival-days record.
 
 Every achievement you unlock also earns a **Ranger Skills** point, spendable on permanent upgrades (seed/water capacity, irrigation radius, move speed, regen rate) from the start screen or pause menu. Every run also logs to a local **Leaderboard** you can export/import as JSON to compare with someone else, and **Settings** offers a colorblind-safe terrain palette and a high-contrast HUD mode.
@@ -102,6 +104,7 @@ js/
   projectiles.js     Seed-pod slingshot physics and hit detection against loggers/poachers
   player.js          Pointer-lock controls, movement, head-bob, resources, interactions
   playerAvatar.js    Low-poly ranger figure shown in third-person / over-the-shoulder view
+  touchControls.js   Touch/mobile input: virtual joystick, drag-to-look, on-screen action buttons
   audio.js           Web Audio synthesis (wind, footsteps, chime, alert, fanfare, fire, rain) — no asset files
   ui.js              HUD updates, toasts, SDG 15 facts, start/pause/victory/defeat screens
   main.js            Scene/renderer/lighting setup, sky dome, day/night cycle, camera views, game loop
@@ -123,6 +126,7 @@ Any static server works — `npx serve`, VS Code's Live Server, etc.
 - Vanilla HTML / CSS / JavaScript (ES modules, no build step)
 - [three.js](https://threejs.org/) r160 via CDN import map (`PointerLockControls` from the official addons)
 - Web Audio API for all sound
+- Touch input via the Pointer Events API, with an automatic fallback off Pointer Lock (unsupported on iOS Safari) for phones and tablets
 - No frameworks, no bundler, no external textures or audio assets
 
 ## 🌍 Why SDG 15

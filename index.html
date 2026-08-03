@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>Guardians of the Land — SDG 15: Life on Land</title>
 <link rel="stylesheet" href="style.css" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌳</text></svg>" />
@@ -62,6 +65,34 @@
         <span>🌿 Skill points <strong id="stat-skillpoints">0</strong></span>
       </div>
       <div class="manual-hint" id="hud-level">Press <kbd>H</kbd> for the manual</div>
+    </div>
+  </div>
+
+  <div id="touch-controls" class="hidden">
+    <div id="touch-look-layer"></div>
+
+    <div id="touch-joystick">
+      <div id="touch-joystick-thumb"></div>
+    </div>
+
+    <div id="touch-actions">
+      <button id="touch-btn-water" class="touch-btn" aria-label="Irrigate / douse fire">💧</button>
+      <button id="touch-btn-plant" class="touch-btn" aria-label="Plant">🌱</button>
+      <button id="touch-btn-shoot" class="touch-btn touch-btn-primary" aria-label="Shoot">🎯</button>
+    </div>
+
+    <div id="touch-actions-secondary">
+      <button id="touch-btn-switch" class="touch-btn-small" aria-label="Switch tree/shrub">🌳⇄🌿</button>
+      <button id="touch-btn-view" class="touch-btn-small" aria-label="Change camera view">🎥</button>
+      <button id="touch-btn-manual" class="touch-btn-small" aria-label="Field manual">📖</button>
+      <button id="touch-btn-pause" class="touch-btn-small" aria-label="Pause">⏸️</button>
+    </div>
+  </div>
+
+  <div id="rotate-notice">
+    <div class="card">
+      <div class="rotate-icon">🔄</div>
+      <p class="desc">Rotate your device to landscape for the best experience.</p>
     </div>
   </div>
 

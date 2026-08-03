@@ -1,5 +1,6 @@
 import { renderSkillTree } from "./skills.js";
 import { renderLeaderboard } from "./leaderboard.js";
+import { isTouchDevice } from "./touchControls.js";
 
 const FACTS = [
   "SDG 15 calls for the sustainable management of forests, combating desertification, and halting biodiversity loss by 2030.",
@@ -52,7 +53,9 @@ export class UI {
       leaderboard: document.getElementById("leaderboard-screen"),
       leaderboardList: document.getElementById("leaderboard-list"),
       settings: document.getElementById("settings-screen"),
+      touchControls: document.getElementById("touch-controls"),
     };
+    this.touchMode = isTouchDevice();
     this.plantedCount = 0;
     this.confrontedCount = 0;
     this.lastDay = 1;
@@ -178,6 +181,7 @@ export class UI {
   onPointerLock(locked) {
     this.el.pause.classList.toggle("hidden", locked || this.wonAlready || this.lostAlready || this.manualOpen);
     this.el.crosshair.classList.toggle("hidden", !locked);
+    if (this.touchMode) this.el.touchControls.classList.toggle("hidden", !locked);
     if (locked) {
       this.el.start.classList.add("hidden");
       this.el.hud.classList.remove("hidden");

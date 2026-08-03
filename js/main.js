@@ -15,6 +15,7 @@ import { WeedManager } from "./weeds.js";
 import { AchievementManager } from "./achievements.js";
 import { Minimap } from "./minimap.js";
 import { PlayerAvatar } from "./playerAvatar.js";
+import { TouchControls, isTouchDevice } from "./touchControls.js";
 import { randRange } from "./utils.js";
 import { SkillManager, renderSkillTree } from "./skills.js";
 import {
@@ -95,6 +96,8 @@ class Game {
 
     this.skills = new SkillManager();
     this.skills.applyAll(this.player);
+
+    if (isTouchDevice()) this.touchControls = new TouchControls(this.player);
 
     this.avatar = new PlayerAvatar(this.scene);
     const savedView = VIEW_MODES.findIndex((m) => m.id === localStorage.getItem(VIEW_MODE_KEY));
@@ -494,7 +497,7 @@ class Game {
 
   _openManual() {
     this.ui.showManual();
-    if (this.player.locked) document.exitPointerLock?.();
+    this.player.unlock();
   }
 
   _closeManual() {
@@ -526,7 +529,7 @@ class Game {
   _openSkills() {
     this._refreshSkillsUI();
     this.ui.showSkills();
-    if (this.player.locked) document.exitPointerLock?.();
+    this.player.unlock();
   }
 
   _closeSkills() {
@@ -536,7 +539,7 @@ class Game {
 
   _openLeaderboard() {
     this.ui.showLeaderboard();
-    if (this.player.locked) document.exitPointerLock?.();
+    this.player.unlock();
   }
 
   _closeLeaderboard() {
@@ -546,7 +549,7 @@ class Game {
 
   _openSettings() {
     this.ui.showSettings();
-    if (this.player.locked) document.exitPointerLock?.();
+    this.player.unlock();
   }
 
   _closeSettings() {

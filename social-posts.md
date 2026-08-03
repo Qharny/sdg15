@@ -87,3 +87,38 @@ pov: you're a ranger and the desert is winning 🏜️➡️🌳
 built this whole 3D game with just HTML/CSS/JS (no Unity, no Unreal, just a browser). the land actually degrades if you don't take care of it, this isn't a cutscene, it's a live simulation.
 
 #gamedev #codingtiktok #threejs #vanillajs #indiegamedev #sdg15 #ecosystem #techtok
+
+---
+
+## 📱 Mobile Support Update
+
+Use these once touch controls ship, instead of (or alongside) the launch posts above.
+
+### LinkedIn
+
+Guardians of the Land now plays on phones and tablets, not just desktop.
+
+I added a virtual joystick, drag-to-look, and on-screen action buttons, and skipped the browser's Pointer Lock API entirely on touch devices since it's unsupported on iOS Safari and unreliable elsewhere. Same simulation, same win conditions, now in your pocket.
+
+🌍 SDG 15: Life on Land, playable anywhere with a browser.
+
+🎮 Play: [link]
+💻 Code: [GitHub link]
+
+#SDG15 #GameDev #Threejs #MobileWeb #JavaScript #Sustainability
+
+### X (Twitter)
+
+Guardians of the Land now works on mobile 📱
+
+Virtual joystick + drag-to-look + on-screen buttons, no Pointer Lock required (which iOS Safari doesn't even support). Same desertification-fighting sim, now playable one-handed on the couch.
+
+▶️ [link]
+
+#gamedev #threejs #SDG15 #mobiledev
+
+### TikTok (video description)
+
+my browser game now works on your phone 📱🌳 no app store, no download, just tap the link. virtual joystick to move, drag to look around, tap to plant/water/shoot. same desert-vs-forest sim, now in your pocket
+
+#gamedev #codingtok #mobiledev #threejs #indiegame #sdg15 #webdev
