@@ -132,3 +132,7 @@ Sustainable Development Goal 15 calls for protecting and restoring terrestrial e
 ## 📄 License
 
 MIT
+
+---
+
+_Built for SDG 15 awareness — restoration takes patience, degradation doesn't wait._
