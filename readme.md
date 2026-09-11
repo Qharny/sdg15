@@ -133,6 +133,4 @@ Sustainable Development Goal 15 calls for protecting and restoring terrestrial e
 
 MIT
 
----
-
-_Built for SDG 15 awareness — restoration takes patience, degradation doesn't wait._
+**Tip:** the in-game field manual (`H`) is worth a skim before your first run — it covers resource caps and threat tells that aren't obvious from the HUD alone.
